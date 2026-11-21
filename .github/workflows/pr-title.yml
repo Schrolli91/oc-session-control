@@ -49,6 +49,7 @@ jobs:
       - name: Apply type label
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           TITLE: ${{ github.event.pull_request.title }}
         run: |
@@ -82,5 +83,5 @@ jobs:
             remove="${remove:+$remove,}breaking-change"
           fi
 
-          gh pr edit "$PR" --remove-label "$remove" --add-label "$add"
+          gh pr edit "$PR" --repo "$REPO" --remove-label "$remove" --add-label "$add"
           echo "Labelled PR #$PR as '$add'"
