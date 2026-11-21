@@ -1,0 +1,64 @@
+{
+  "name": "oc-session-control",
+  "version": "0.1.1",
+  "description": "OpenCode TUI plugin for session costs and context usage",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Schrolli91/oc-session-control.git"
+  },
+  "type": "module",
+  "exports": {
+    "./tui": {
+      "types": "./src/tui.tsx",
+      "import": "./dist/tui.js",
+      "default": "./dist/tui.js"
+    }
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "dist",
+    "src",
+    ".opencode/plugins/oc-session-control/tui.tsx"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.mjs\"",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.3.2"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "@opentui/core": "0.8.4",
+    "@opentui/solid": "0.8.4",
+    "babel-plugin-module-resolver": "5.0.2",
+    "babel-preset-solid": "1.9.16",
+    "solid-js": "1.9.20",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,189 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
+import ts from "typescript"
+import {
+  cacheTtlTimerEligible,
+  clearDashboardTimer,
+  syncDashboardTimer,
+} from "./dashboard-timers.mjs"
+
+const trackerSource = await readFile(new URL("./session-tracker.ts", import.meta.url), "utf8")
+const trackerModule = ts.transpileModule(trackerSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ESNext },
+}).outputText
+  .replace('"solid-js"', JSON.stringify(import.meta.resolve("solid-js")))
+  .replace('"./agents.mjs"', JSON.stringify(new URL("./agents.mjs", import.meta.url).href))
+const { createSessionTracker } = await import(`data:text/javascript;base64,${Buffer.from(trackerModule).toString("base64")}`)
+
+function makeContext() {
+  const handlers = new Map()
+  const calls = new Map()
+  const count = (name) => calls.set(name, (calls.get(name) ?? 0) + 1)
+  const collection = (name) => ({
+    invalidate: () => count(`${name}.invalidate`),
+    sync: () => { count(`${name}.sync`); return Promise.resolve() },
+    list: () => [],
+  })
+  const context = {
+    location: { directory: "/project", workspaceID: "workspace" },
+    data: {
+      on(name, handler) {
+        handlers.set(name, handler)
+        return () => handlers.delete(name)
+      },
+      session: {
+        family: () => [],
+        get: () => undefined,
+        cost: () => undefined,
+        status: () => undefined,
+        invalidate: () => count("session.invalidate"),
+        sync: () => { count("session.sync"); return Promise.resolve() },
+        message: collection("message"),
+        permission: collection("permission"),
+        form: collection("form"),
+      },
+      location: {
+        default: () => context.location,
+        agent: collection("agent"),
+        skill: collection("skill"),
+        model: collection("model"),
+        provider: collection("provider"),
+      },
+    },
+  }
+  return { context, handlers, calls, count }
+}
+
+test("deduplicates in-flight refreshes for one session", async () => {
+  const { context, calls } = makeContext()
+  let release
+  context.data.session.sync = () => {
+    calls.set("session.sync", (calls.get("session.sync") ?? 0) + 1)
+    return new Promise((resolve) => { release = resolve })
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const first = tracker.refreshSession("session-1")
+  const second = tracker.refreshSession("session-1")
+
+  assert.strictEqual(second, first)
+  assert.equal(calls.get("session.invalidate"), 1)
+  assert.equal(calls.get("session.sync"), 1)
+  release()
+  await Promise.all([first, second])
+  tracker.dispose()
+})
+
+test("retains last-known render data until a replacement arrives", () => {
+  const { context } = makeContext()
+  let session = { title: "Known title" }
+  let family = ["child"]
+  context.data.session.get = () => session
+  context.data.session.family = () => family
+  const tracker = createSessionTracker(context, context.location)
+
+  assert.equal(tracker.dashboardContext.data.session.get("session-1").title, "Known title")
+  assert.deepEqual(tracker.sessionFamily("session-1"), ["child"])
+  session = undefined
+  family = undefined
+  assert.equal(tracker.dashboardContext.data.session.get("session-1").title, "Known title")
+  assert.deepEqual(tracker.sessionFamily("session-1"), ["child"])
+  session = { title: "Updated title" }
+  family = []
+  assert.equal(tracker.dashboardContext.data.session.get("session-1").title, "Updated title")
+  assert.deepEqual(tracker.sessionFamily("session-1"), [])
+  tracker.dispose()
+})
+
+test("prunes execution state for sessions no longer in the active family", () => {
+  const { context, handlers } = makeContext()
+  let family = ["live", "stale"]
+  context.data.session.family = () => family
+  const tracker = createSessionTracker(context, context.location)
+  handlers.get("session.execution.started")({ data: { sessionID: "live" } })
+  handlers.get("session.execution.started")({ data: { sessionID: "stale" } })
+  assert.deepEqual([...tracker.executingSessionIDs()].sort(), ["live", "stale"])
+
+  family = ["live"]
+  assert.deepEqual(tracker.sessionFamily("main"), ["live"])
+  assert.deepEqual([...tracker.executingSessionIDs()], ["live"])
+  assert.equal(tracker.executionResults().has("stale"), false)
+  handlers.get("session.execution.started")({ data: { sessionID: "stale" } })
+  assert.deepEqual([...tracker.executingSessionIDs()], ["live"])
+  tracker.dispose()
+})
+
+test("prunes cached families for roots outside the active session family", () => {
+  const { context } = makeContext()
+  const families = { main: ["live", "stale"], stale: ["nested"] }
+  context.data.session.family = (id) => families[id]
+  const tracker = createSessionTracker(context, context.location)
+
+  assert.deepEqual(tracker.sessionFamily("stale"), ["nested"])
+  assert.deepEqual(tracker.sessionFamily("main"), ["live", "stale"])
+  families.main = ["live"]
+  assert.deepEqual(tracker.sessionFamily("main"), ["live"])
+  families.stale = undefined
+  assert.deepEqual(tracker.sessionFamily("stale"), [])
+  tracker.dispose()
+})
+
+test("disposes listeners once and ignores refreshes afterward", async () => {
+  const { context, handlers, calls } = makeContext()
+  const tracker = createSessionTracker(context, context.location)
+  assert.ok(handlers.size > 0)
+  tracker.dispose()
+  tracker.dispose()
+
+  assert.equal(handlers.size, 0)
+  await tracker.refreshSession("session-1")
+  assert.equal(calls.get("session.sync"), undefined)
+})
+
+test("cleans earlier listeners when event registration fails", () => {
+  const { context, handlers } = makeContext()
+  const on = context.data.on
+  context.data.on = (name, handler) => {
+    if (name === "session.status") throw new Error("setup failed")
+    return on(name, handler)
+  }
+
+  assert.throws(() => createSessionTracker(context, context.location), /setup failed/)
+  assert.equal(handlers.size, 0)
+})
+
+test("scopes dashboard timers to eligible data and cleans them on scope changes", (t) => {
+  const active = new Map()
+  let nextHandle = 0
+  t.mock.method(globalThis, "setInterval", (callback, delay) => {
+    const handle = ++nextHandle
+    active.set(handle, { callback, delay })
+    return handle
+  })
+  t.mock.method(globalThis, "clearInterval", (handle) => active.delete(handle))
+
+  assert.equal(cacheTtlTimerEligible(true, Date.now()), false)
+  assert.equal(cacheTtlTimerEligible(false, undefined), false)
+  assert.equal(cacheTtlTimerEligible(false, Number.NaN), false)
+  assert.equal(cacheTtlTimerEligible(false, Date.now()), true)
+
+  let timer
+  timer = syncDashboardTimer(timer, "session-1", false, () => {}, 1_000)
+  assert.equal(timer, undefined)
+  timer = syncDashboardTimer(timer, "session-1", true, () => {}, 1_000)
+  const firstHandle = timer.handle
+  assert.equal(active.get(firstHandle).delay, 1_000)
+
+  timer = syncDashboardTimer(timer, "session-2", true, () => {}, 90)
+  assert.equal(active.has(firstHandle), false)
+  const secondHandle = timer.handle
+  assert.equal(active.get(secondHandle).delay, 90)
+
+  timer = syncDashboardTimer(timer, "session-2", false, () => {}, 90)
+  assert.equal(timer, undefined)
+  assert.equal(active.size, 0)
+
+  timer = syncDashboardTimer(timer, "session-2", true, () => {}, 1_000)
+  clearDashboardTimer(timer)
+  assert.equal(active.size, 0)
+})
