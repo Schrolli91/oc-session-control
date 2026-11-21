@@ -12,6 +12,8 @@ This installs the package and adds it to your global OpenCode configuration. Res
 
 Do not install from a Git branch: OpenCode 2.3.x cannot install Git dependencies that define a `build` script ([opencode#49704](https://github.com/anomalyco/opencode/issues/49704)). Releases are published to npm instead.
 
+OpenCode's own `Context` panel (tokens, `% used`, `spent`) sits above this dashboard. To hide it, add `"-opencode.sidebar.context"` to `plugins` in `~/.config/opencode/cli.json`, or run `/plugins`, press `Ctrl+A`, and toggle `opencode.sidebar.context` off.
+
 ## Uninstallation
 
 ```sh
@@ -36,21 +38,6 @@ Click a section heading to collapse or expand it. The dashboard is mouse-only: i
 Skill insertion only works when an OpenCode prompt editor is already focused; otherwise the click does nothing. OpenCode 2.3.2 has no supported prompt-insertion or targeted-picker API for this path, so the internal picker and frame-gate flow is unsupported and unverified.
 
 The plugin reads data through OpenCode host APIs and makes no network requests of its own.
-
-## Hiding the built-in Context panel
-
-OpenCode renders its own `Context` panel (tokens, `% used`, `spent`) above this dashboard. It comes from the built-in `opencode.sidebar.context` TUI plugin and has no collapse toggle. To hide only that panel, add a disable directive to `cli.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["oc-session-control", "-opencode.sidebar.context"]
-}
-```
-
-The `-` prefix disables a plugin. The same switch is available in the TUI: run `/plugins`, press `Ctrl+A` to show internal plugins, select `opencode.sidebar.context`, and press `Enter` to toggle it off.
-
-To hide the whole sidebar, including this dashboard, toggle it with `Ctrl+X` then `B`, or set `"session": { "sidebar": "hide" }` in `cli.json`.
 
 ## Development
 
