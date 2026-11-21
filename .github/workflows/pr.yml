@@ -87,11 +87,12 @@ jobs:
               ;;
           esac
 
-          all="feature,bug,docs,refactor,tests,ci,chore,dependencies"
-          remove="${all//$label/}"
-          remove="${remove//,,/,}"
-          remove="${remove%,}"
+          # comma delimiters keep the substitution entry-wise: plain
+          # "${all//ci/}" would also mangle 'dependencies' into 'dependenes'
+          all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
+          remove="${all//,$label,/,}"
           remove="${remove#,}"
+          remove="${remove%,}"
 
           add="$label"
           breaking_re='^[a-z]+(\([^)]*\))?!:'
