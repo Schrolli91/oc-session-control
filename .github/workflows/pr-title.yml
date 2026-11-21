@@ -1,0 +1,46 @@
+name: PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|ci|chore)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "PR title is valid: $TITLE"
+            exit 0
+          fi
+
+          {
+            echo "### PR title does not follow Conventional Commits"
+            echo
+            echo "Received: \`$TITLE\`"
+            echo
+            echo "Expected: \`<type>(<scope>)!: <description>\`"
+            echo
+            echo "- type: feat, fix, docs, refactor, test, ci, chore"
+            echo "- scope: optional, lowercase"
+            echo "- \`!\` before the colon marks a breaking change"
+            echo
+            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`"
+            echo
+            echo "The PR title becomes the squash commit on main and feeds the changelog."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
+          exit 1
