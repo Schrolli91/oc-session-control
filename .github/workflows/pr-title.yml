@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: pr-title-${{ github.event.pull_request.number }}
@@ -46,6 +45,15 @@ jobs:
           echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
           exit 1
 
+  # Best effort only: forks get a read-only token, so this may fail there.
+  # The required check is "pr-title" (validation), never this job.
+  label:
+    needs: pr-title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    continue-on-error: true
+    steps:
       - name: Apply type label
         env:
           GH_TOKEN: ${{ github.token }}
