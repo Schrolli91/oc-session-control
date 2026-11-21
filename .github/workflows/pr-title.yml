@@ -1,5 +1,8 @@
 name: PR Title
 
+# Only validation lives here: it needs read access only, so this check passes
+# for fork PRs too and stays safe as the required status check.
+
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -44,52 +47,3 @@ jobs:
 
           echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
           exit 1
-
-  # Best effort only: forks get a read-only token, so this may fail there.
-  # The required check is "pr-title" (validation), never this job.
-  label:
-    needs: pr-title
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    continue-on-error: true
-    steps:
-      - name: Apply type label
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          type="${TITLE%%(*}"
-          type="${type%%!*}"
-          type="${type%%:*}"
-
-          case "$type" in
-            feat)   label="feature" ;;
-            fix)    label="bug" ;;
-            test)   label="tests" ;;
-            docs|refactor|ci|chore) label="$type" ;;
-            *)
-              echo "::error::Unmapped type '$type'"
-              exit 1
-              ;;
-          esac
-
-          all="feature,bug,docs,refactor,tests,ci,chore"
-          remove="${all//$label/}"
-          remove="${remove//,,/,}"
-          remove="${remove%,}"
-          remove="${remove#,}"
-
-          add="$label"
-          breaking_re='^[a-z]+(\([^)]*\))?!:'
-          if [[ "$TITLE" =~ $breaking_re ]]; then
-            add="$add,breaking-change"
-            echo "Breaking change detected"
-          else
-            remove="${remove:+$remove,}breaking-change"
-          fi
-
-          gh pr edit "$PR" --repo "$REPO" --remove-label "$remove" --add-label "$add"
-          echo "Labelled PR #$PR as '$add'"

@@ -1,0 +1,69 @@
+name: PR Label
+
+# pull_request_target: must be able to label PRs from forks, which get a
+# read-only token on plain pull_request events. Safety rules for this file:
+# never check out or execute code from the PR, only pass the PR title
+# through env: and talk to the API. The workflow always runs from main.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply type label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|ci|chore)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "Title does not match conventional format, skipping labels: $TITLE"
+            exit 0
+          fi
+
+          type="${TITLE%%(*}"
+          type="${type%%!*}"
+          type="${type%%:*}"
+
+          case "$type" in
+            feat)   label="feature" ;;
+            fix)    label="bug" ;;
+            test)   label="tests" ;;
+            docs|refactor|ci|chore) label="$type" ;;
+            *)
+              echo "::error::Unmapped type '$type'"
+              exit 1
+              ;;
+          esac
+
+          all="feature,bug,docs,refactor,tests,ci,chore"
+          remove="${all//$label/}"
+          remove="${remove//,,/,}"
+          remove="${remove%,}"
+          remove="${remove#,}"
+
+          add="$label"
+          breaking_re='^[a-z]+(\([^)]*\))?!:'
+          if [[ "$TITLE" =~ $breaking_re ]]; then
+            add="$add,breaking-change"
+            echo "Breaking change detected"
+          else
+            remove="${remove:+$remove,}breaking-change"
+          fi
+
+          gh pr edit "$PR" --repo "$REPO" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$PR as '$add'"
