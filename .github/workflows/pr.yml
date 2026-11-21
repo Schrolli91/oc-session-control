@@ -1,5 +1,12 @@
 name: PR
 
+# The type list below is the repo-wide commit vocabulary: it decides the squash
+# commit on main, the labels, and (via release-please) the CHANGELOG sections.
+# If you add a type here, add it to changelog-sections in
+# release-please-config.json too, otherwise that type never shows up in
+# CHANGELOG.md. release-please itself opens its PR as
+# `chore(main): release X.Y.Z`, which must keep matching this pattern.
+
 # pull_request_target so PRs from forks are covered too (they only get a
 # read-only token on plain pull_request events). Safety rules for this file:
 # never check out or execute anything from the PR, pass the PR title only
@@ -25,7 +32,7 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pattern='^(feat|fix|docs|refactor|test|ci|chore)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+          pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
 
           if [[ "$TITLE" =~ $pattern ]]; then
             echo "PR title is valid: $TITLE"
@@ -39,11 +46,11 @@ jobs:
             echo
             echo "Expected: \`<type>(<scope>)!: <description>\`"
             echo
-            echo "- type: feat, fix, docs, refactor, test, ci, chore"
+            echo "- type: feat, fix, docs, refactor, test, ci, chore, deps"
             echo "- scope: optional, lowercase"
             echo "- \`!\` before the colon marks a breaking change"
             echo
-            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`"
+            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`, \`deps: bump @opencode/plugin\`"
             echo
             echo "The PR title becomes the squash commit on main and feeds the changelog."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -73,13 +80,14 @@ jobs:
             fix)    label="bug" ;;
             test)   label="tests" ;;
             docs|refactor|ci|chore) label="$type" ;;
+            deps)   label="dependencies" ;;
             *)
               echo "::error::Unmapped type '$type'"
               exit 1
               ;;
           esac
 
-          all="feature,bug,docs,refactor,tests,ci,chore"
+          all="feature,bug,docs,refactor,tests,ci,chore,dependencies"
           remove="${all//$label/}"
           remove="${remove//,,/,}"
           remove="${remove%,}"
