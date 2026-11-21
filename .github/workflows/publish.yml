@@ -1,10 +1,18 @@
 name: Publish
 
+# Runs three ways:
+#   - workflow_call from the Release workflow (the normal path: tag and
+#     GitHub Release are created with GITHUB_TOKEN, which does NOT trigger
+#     the `push: tags` event below)
+#   - push of a v* tag (manual `git push --tags` from a machine)
+#   - workflow_dispatch (manual re-run)
+
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   publish:
