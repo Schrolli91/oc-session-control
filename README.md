@@ -12,6 +12,8 @@ This installs the package and adds it to your global OpenCode configuration. Res
 
 Do not install from a Git branch: OpenCode 2.3.x cannot install Git dependencies that define a `build` script ([opencode#49704](https://github.com/anomalyco/opencode/issues/49704)). Releases are published to npm instead.
 
+OpenCode's own `Context` panel (tokens, `% used`, `spent`) sits above this dashboard. To hide it, add `"-opencode.sidebar.context"` to `plugins` in `~/.config/opencode/cli.json`, or run `/plugins`, press `Ctrl+A`, and toggle `opencode.sidebar.context` off.
+
 ## Uninstallation
 
 ```sh
