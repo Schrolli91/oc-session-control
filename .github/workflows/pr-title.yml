@@ -73,9 +73,14 @@ jobs:
           remove="${remove%,}"
           remove="${remove#,}"
 
-          args=()
-          [[ -n "$remove" ]] && args+=(--remove-label "$remove")
-          args+=(--add-label "$label")
+          add="$label"
+          breaking_re='^[a-z]+(\([^)]*\))?!:'
+          if [[ "$TITLE" =~ $breaking_re ]]; then
+            add="$add,breaking-change"
+            echo "Breaking change detected"
+          else
+            remove="${remove:+$remove,}breaking-change"
+          fi
 
-          gh pr edit "$PR" "${args[@]}"
-          echo "Labelled PR #$PR as '$label'"
+          gh pr edit "$PR" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$PR as '$add'"
