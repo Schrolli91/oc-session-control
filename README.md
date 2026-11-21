@@ -37,6 +37,21 @@ Skill insertion only works when an OpenCode prompt editor is already focused; ot
 
 The plugin reads data through OpenCode host APIs and makes no network requests of its own.
 
+## Hiding the built-in Context panel
+
+OpenCode renders its own `Context` panel (tokens, `% used`, `spent`) above this dashboard. It comes from the built-in `opencode.sidebar.context` TUI plugin and has no collapse toggle. To hide only that panel, add a disable directive to `cli.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["oc-session-control", "-opencode.sidebar.context"]
+}
+```
+
+The `-` prefix disables a plugin. The same switch is available in the TUI: run `/plugins`, press `Ctrl+A` to show internal plugins, select `opencode.sidebar.context`, and press `Enter` to toggle it off.
+
+To hide the whole sidebar, including this dashboard, toggle it with `Ctrl+X` then `B`, or set `"session": { "sidebar": "hide" }` in `cli.json`.
+
 ## Development
 
 Start `opencode` inside this repository; it auto-discovers the plugin in `.opencode/plugins/`.
