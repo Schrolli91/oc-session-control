@@ -1,4 +1,4 @@
-import { findModel, getModelBaseCost } from "./models.mjs"
+import { findModel, getModelBaseCost, getModelCostTiers } from "./models.mjs"
 
 export function latestAssistantUsage(messages) {
   if (!Array.isArray(messages)) return undefined
@@ -21,6 +21,21 @@ function hasCompletedCompaction(messages) {
 // no longer invalidates the session's estimate. `known` means a priceable number
 // exists for the session; `missing` means that number does not cover the whole
 // lifetime cache-read counter.
+// Context-Tier gewinnt, sobald das genutzte Fenster die Schwelle des Tiers
+// ueberschreitet; ohne gueltige Fenstergroesse oder Tier bleibt der Basistier.
+function pricingForContext(model, tokens) {
+  const base = getModelBaseCost(model)
+  const used = (tokens?.input ?? NaN) +
+    (tokens?.cache?.read ?? NaN) +
+    (tokens?.cache?.write ?? NaN)
+  if (!Number.isFinite(used)) return base
+  const tier = getModelCostTiers(model)
+    .filter((entry) => entry?.tier?.type === "context" && Number.isFinite(entry.tier?.size))
+    .filter((entry) => used > entry.tier.size)
+    .sort((a, b) => b.tier.size - a.tier.size)[0]
+  return tier ?? base
+}
+
 function sessionSavings(tokens, messages, sessionModels) {
   const cacheRead = tokens?.cache?.read
   if (!Number.isFinite(cacheRead) || cacheRead < 0) return { known: false, missing: true }
@@ -43,15 +58,24 @@ function sessionSavings(tokens, messages, sessionModels) {
     if (!Number.isFinite(read) || read < 0) return { known: false, missing: true }
     summedRead += read
 
-    const pricing = getModelBaseCost(findModel(info.model, sessionModels))
+    const pricing = pricingForContext(findModel(info.model, sessionModels), info.tokens)
     const inputRate = pricing?.input
     const cacheRate = pricing?.cache?.read
+    const writeRate = pricing?.cache?.write
     if (
       !Number.isFinite(inputRate) || inputRate < 0 ||
       !Number.isFinite(cacheRate) || cacheRate < 0
     ) return { known: false, missing: true }
 
-    const estimate = (read * (inputRate - cacheRate)) / 1_000_000
+    // Geschriebene Cache-Tokens kosten den Ueberpreis gegenueber Input; er senkt
+    // die Ersparnis. Klemme pro Call auf 0 — nie eine negative Ersparnis.
+    let estimate = (read * (inputRate - cacheRate)) / 1_000_000
+    const write = info.tokens?.cache?.write
+    if (Number.isFinite(write) && write > 0) {
+      if (!Number.isFinite(writeRate) || writeRate < 0) return { known: false, missing: true }
+      estimate -= (write * (writeRate - inputRate)) / 1_000_000
+    }
+    estimate = Math.max(0, estimate)
     if (!Number.isFinite(total + estimate)) return { known: false, missing: true }
     total += estimate
   }
@@ -158,10 +182,16 @@ export function usageBarWidths(values, width) {
   return widths
 }
 
-export function cacheHitRate(input, cacheRead) {
-  if (!Number.isFinite(input) || input < 0 || !Number.isFinite(cacheRead) || cacheRead < 0) return undefined
-  const scale = Math.max(input, cacheRead)
-  const rate = scale > 0 ? (cacheRead / scale) / (input / scale + cacheRead / scale) * 100 : undefined
+export function cacheHitRate(input, cacheRead, cacheWrite = 0) {
+  if (
+    !Number.isFinite(input) || input < 0 ||
+    !Number.isFinite(cacheRead) || cacheRead < 0 ||
+    !Number.isFinite(cacheWrite) || cacheWrite < 0
+  ) return undefined
+  const scale = Math.max(input, cacheRead, cacheWrite)
+  const rate = scale > 0
+    ? (cacheRead / scale) / (input / scale + cacheRead / scale + cacheWrite / scale) * 100
+    : undefined
   return rate === undefined ? undefined : Number(rate.toPrecision(15))
 }
 
@@ -174,7 +204,7 @@ export function lastCacheCallStats(sessionIDs, getMessages) {
       const info = message?.info ?? message
       if (info?.type !== "assistant" || !info.tokens) continue
       calls.push({
-        rate: cacheHitRate(info.tokens.input, info.tokens.cache?.read),
+        rate: cacheHitRate(info.tokens.input, info.tokens.cache?.read, info.tokens.cache?.write),
         timestamp: info.time?.completed ?? info.time?.created,
         order: calls.length,
       })
@@ -202,7 +232,9 @@ export function lastCacheCallStats(sessionIDs, getMessages) {
 
 export function formatPercentage(value) {
   if (!Number.isFinite(value)) return "—"
-  return `${(Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2)}%`
+  // 1e-9 kompensiert die Gleitkomma-Unterschreitung von value*100 (z.B. 0.29),
+  // ohne echte Nachkommstellen aufzurunden — abschneiden wie in der Spez gefordert.
+  return `${(Math.floor(value * 100 + 1e-9) / 100).toFixed(2)}%`
 }
 
 export function formatPercentageChange(value) {
@@ -245,4 +277,10 @@ export function formatTokenCount(value) {
 export function formatTokenTotal(value) {
   if (!Number.isFinite(value) || value < 0) return "—"
   return formatTokenCount(value).replace(/k$/, "K").replace(/m$/, "M").replace(/b$/, "B")
+}
+
+// Ohne gueltigen Wert nur der nackte Platzhalter — die Einheit steht nur bei
+// echten Zahlen (Harmonisierung mit dem Skills-Header).
+export function formatTokenTotalWithUnit(value) {
+  return Number.isFinite(value) && value >= 0 ? `${formatTokenTotal(value)} tok` : "—"
 }
