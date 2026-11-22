@@ -11,6 +11,7 @@ import {
   formatPercentageChange,
   formatTokenCount,
   formatTokenTotal,
+  formatTokenTotalWithUnit,
   lastCacheCallStats,
   latestAssistantUsage,
   usageBarWidths,
@@ -69,7 +70,9 @@ test("aggregates token usage and estimated cache savings across the session fami
   })
   assert.equal(usage.saved.known, 2)
   assert.equal(usage.saved.missing, 0)
-  assert.ok(Math.abs(usage.saved.total - 2.7) < Number.EPSILON)
+  // Fenster > 200k → Context-Tier-Preise (1.8 + 3.6), minus Write-Premium (15/1e6)
+  const expected = 5.4 - 15 / 1_000_000
+  assert.ok(Math.abs(usage.saved.total - expected) < 1e-9)
 })
 
 test("uses the matching session location's model catalog for cache savings", () => {
@@ -100,6 +103,51 @@ test("uses the matching session location's model catalog for cache savings", () 
   assert.equal(usage.saved.known, 2)
   assert.equal(usage.saved.missing, 0)
   assert.ok(Math.abs(usage.saved.total - 2.7) < Number.EPSILON)
+})
+
+const savingsFor = ({ sessionTokens, callTokens, cost }) => aggregateUsage(
+  ["main"],
+  () => ({ tokens: sessionTokens }),
+  () => [{
+    type: "assistant",
+    model: { providerID: "provider", id: "model" },
+    tokens: callTokens,
+  }],
+  [{ providerID: "provider", modelID: "model", cost }],
+).saved
+
+test("prices cache savings with the context tier when the call window exceeds the threshold", () => {
+  const cost = [
+    { input: 1, output: 2, cache: { read: 0.1, write: 1.25 } },
+    { tier: { type: "context", size: 200_000 }, input: 2, output: 4, cache: { read: 0.2, write: 2.5 } },
+  ]
+  const savedWithRead = (read) => savingsFor({
+    sessionTokens: { input: 0, output: 0, reasoning: 0, cache: { read, write: 0 } },
+    callTokens: { input: 0, output: 0, cache: { read, write: 0 } },
+    cost,
+  })
+  const below = savedWithRead(100_000)
+  const above = savedWithRead(300_000)
+  assert.equal(below.known, 1)
+  assert.equal(above.known, 1)
+  assert.ok(Math.abs(below.total - 0.09) < 1e-9)
+  assert.ok(Math.abs(above.total - 0.54) < 1e-9)
+})
+
+test("subtracts cache-write costs and never reports a negative estimate", () => {
+  const cost = { input: 1, output: 2, cache: { read: 0.1, write: 1.25 } }
+  const savedFor = (read, write) => savingsFor({
+    sessionTokens: { input: 0, output: 0, reasoning: 0, cache: { read, write } },
+    callTokens: { input: 0, output: 0, cache: { read, write } },
+    cost,
+  })
+  const withWrites = savedFor(1_000_000, 100_000)
+  assert.equal(withWrites.known, 1)
+  assert.ok(Math.abs(withWrites.total - 0.875) < 1e-9)
+  assert.ok(withWrites.total < 0.9)
+  const drowned = savedFor(1_000, 100_000)
+  assert.equal(drowned.known, 1)
+  assert.equal(drowned.total, 0)
 })
 
 test("builds input, output, and session totals from the aggregated session family", () => {
@@ -367,26 +415,36 @@ test("formats token totals with compact suffixes", () => {
   assert.equal(formatTokenTotal(1_234_000_000), "1.2B")
 })
 
+test("appends the unit only to valid token totals", () => {
+  assert.equal(formatTokenTotalWithUnit(872_000), "872K tok")
+  assert.equal(formatTokenTotalWithUnit(undefined), "—")
+  assert.equal(formatTokenTotalWithUnit(-1), "—")
+  assert.equal(formatTokenTotalWithUnit(NaN), "—")
+})
+
 test("calculates family and per-call cache hit rates", () => {
   assert.equal(cacheHitRate(700, 300), 30)
   assert.equal(cacheHitRate(0, 0), undefined)
   assert.equal(cacheHitRate(Number.MAX_VALUE, Number.MAX_VALUE), 50)
   assert.equal(cacheHitRate(3, 1), 25)
+  // Cache-Writes zaehlen als Nicht-Treffer im Nenner
+  assert.equal(cacheHitRate(700, 300, 0), 30)
+  assert.equal(cacheHitRate(700, 300, 1_000), 15)
   const messages = {
     main: [{ info: {
       type: "assistant",
       time: { created: 1_000, completed: 1_100 },
-      tokens: { input: 60, cache: { read: 40 } },
+      tokens: { input: 60, cache: { read: 40, write: 0 } },
     } }],
     child: [{ info: {
       type: "assistant",
       time: { created: 2_000, completed: 2_100 },
-      tokens: { input: 40, cache: { read: 60 } },
+      tokens: { input: 40, cache: { read: 60, write: 60 } },
     } }],
   }
   assert.deepEqual(lastCacheCallStats(["main", "child"], (id) => messages[id]), {
-    rate: 60,
-    change: 20,
+    rate: 37.5,
+    change: -2.5,
     timestamp: 2_100,
   })
 })
@@ -416,8 +474,9 @@ test("orders calls with valid timestamps after calls missing timestamps", () => 
 })
 
 test("formats cache percentages and TTL thresholds", () => {
-  assert.equal(formatPercentage(42.268), "42.27%")
-  assert.equal(formatPercentage(99.9985), "100.00%")
+  assert.equal(formatPercentage(42.268), "42.26%")
+  assert.equal(formatPercentage(99.9985), "99.99%")
+  assert.equal(formatPercentage(0.29), "0.29%")
   assert.equal(formatPercentage(100), "100.00%")
   assert.equal(formatPercentageChange(5.2), "↑5.2%")
   assert.equal(formatPercentageChange(-3), "↓3.0%")

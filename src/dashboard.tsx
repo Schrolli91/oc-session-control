@@ -29,6 +29,7 @@ import {
   formatPercentageChange,
   formatTokenCount,
   formatTokenTotal,
+  formatTokenTotalWithUnit,
   lastCacheCallStats,
 } from "./usage.mjs"
 
@@ -201,7 +202,7 @@ export function Dashboard(props) {
           <CollapsibleHeader
             colors={colors}
             label="Session Total"
-            summary={`${formatTokenTotal(usageBreakdown().sessionTotal)} tok`}
+            summary={formatTokenTotalWithUnit(usageBreakdown().sessionTotal)}
             collapsed={sessionTotalCollapsed()}
             onToggle={() => setSessionTotalCollapsed((collapsed) => !collapsed)}
           />
@@ -215,7 +216,7 @@ export function Dashboard(props) {
               <UsageStat
                 colors={colors}
                 label="↓ Input"
-                value={`${formatTokenTotal(usageBreakdown().input.total)} tok`}
+                value={formatTokenTotalWithUnit(usageBreakdown().input.total)}
                 labelColor={colors().text.base}
                 valueColor={colors().text.base}
               />
@@ -237,7 +238,7 @@ export function Dashboard(props) {
               <UsageStat
                 colors={colors}
                 label="↑ Output"
-                value={`${formatTokenTotal(usageBreakdown().output.total)} tok`}
+                value={formatTokenTotalWithUnit(usageBreakdown().output.total)}
                 labelColor={colors().text.base}
                 valueColor={colors().text.base}
               />
@@ -259,7 +260,7 @@ export function Dashboard(props) {
           <CollapsibleHeader
             colors={colors}
             label="Cache"
-            summary={formatPercentage(cacheHitRate(usage()?.input, usage()?.cacheRead))}
+            summary={formatPercentage(cacheHitRate(usage()?.input, usage()?.cacheRead, usage()?.cacheWrite))}
             collapsed={cacheCollapsed()}
             onToggle={() => setCacheCollapsed((collapsed) => !collapsed)}
           />
