@@ -1,0 +1,68 @@
+name: Release
+
+# Everything that turns commits on main into a published version, in one file:
+#
+#   push to main -> release-please opens/updates the release PR (package.json
+#   bump + CHANGELOG.md). Merging that PR makes release-please create the tag
+#   AND the GitHub Release in the same step, which sets release_created and
+#   starts the publish job.
+#
+#   So npm publish only ever runs for a release that release-please actually
+#   cut — tag and GitHub release exist by construction, there is no other way
+#   into the publish job.
+#
+# One file, not a caller/called pair, matters for npm Trusted Publishing:
+# npm matches the OIDC claim against the workflow file that ran, so a
+# reusable workflow called from another file makes that claim name the
+# caller — the token exchange is rejected and npm publishes with a
+# placeholder token (404).
+#
+# Only feat/fix/deps/breaking commits open a release PR; chore/ci/docs/...
+# land in the changelog of the next one but do not trigger a release by
+# themselves. Force one with a `Release-As: X.Y.Z` footer in a commit body.
+
+on:
+  push:
+    branches: [main]
+
+# serialize: two quick merges must not fight over the same release PR
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # the release PR is labelled via the issues API
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm Trusted Publishing + provenance
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.4.0
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run check
+      - run: npm publish --provenance --access public
