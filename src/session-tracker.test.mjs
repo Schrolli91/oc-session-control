@@ -20,10 +20,11 @@ function makeContext() {
   const handlers = new Map()
   const calls = new Map()
   const count = (name) => calls.set(name, (calls.get(name) ?? 0) + 1)
-  const collection = (name) => ({
+  const collection = (name, extra = {}) => ({
     invalidate: () => count(`${name}.invalidate`),
     sync: () => { count(`${name}.sync`); return Promise.resolve() },
     list: () => [],
+    ...extra,
   })
   const context = {
     location: { directory: "/project", workspaceID: "workspace" },
@@ -39,7 +40,11 @@ function makeContext() {
         status: () => undefined,
         invalidate: () => count("session.invalidate"),
         sync: () => { count("session.sync"); return Promise.resolve() },
-        message: collection("message"),
+        message: collection("message", {
+          more: () => false,
+          loading: () => false,
+          loadMore: () => Promise.resolve(),
+        }),
         permission: collection("permission"),
         form: collection("form"),
       },
@@ -71,6 +76,54 @@ test("deduplicates in-flight refreshes for one session", async () => {
   assert.equal(calls.get("session.sync"), 1)
   release()
   await Promise.all([first, second])
+  tracker.dispose()
+})
+
+test("backfills the transcript pages the newest-page sync cannot see", async () => {
+  const { context } = makeContext()
+  let remaining = true
+  const loaded = []
+  context.data.session.message.more = () => remaining
+  context.data.session.message.loading = () => false
+  context.data.session.message.loadMore = (id, options) => {
+    loaded.push([id, options.all])
+    remaining = false
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+
+  await tracker.refreshSession("session-1")
+  assert.deepEqual(loaded, [["session-1", true]])
+
+  await tracker.refreshSession("session-2")
+  assert.equal(loaded.length, 1)
+  tracker.dispose()
+})
+
+test("keeps loaded history while usage and status events refresh a session", async () => {
+  const { context, handlers, calls } = makeContext()
+  context.data.session.message.list = () => [{}]
+  const tracker = createSessionTracker(context, context.location)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  handlers.get("session.usage.updated")({ data: { sessionID: "session-1" } })
+  await flush()
+  assert.equal(calls.get("message.invalidate"), undefined)
+  assert.equal(calls.get("message.sync"), undefined)
+
+  handlers.get("session.status")({ data: { sessionID: "session-1" } })
+  await flush()
+  assert.equal(calls.get("message.sync"), undefined)
+
+  context.data.session.message.list = () => []
+  handlers.get("session.usage.updated")({ data: { sessionID: "session-2" } })
+  await flush()
+  assert.equal(calls.get("message.sync"), 1)
+
+  handlers.get("session.compaction.ended")({ data: { sessionID: "session-1" } })
+  await flush()
+  assert.equal(calls.get("message.invalidate"), 2)
+  assert.equal(calls.get("message.sync"), 2)
   tracker.dispose()
 })
 

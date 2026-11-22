@@ -18,28 +18,29 @@ function hasCompletedCompaction(messages) {
 }
 
 // Price each assistant call under the model it was billed under, so a model switch
-// no longer invalidates the session's estimate. Returns { total, known: true } or
-// { missing: true } when the session's cache reads cannot be fully attributed.
+// no longer invalidates the session's estimate. `known` means a priceable number
+// exists for the session; `missing` means that number does not cover the whole
+// lifetime cache-read counter.
 function sessionSavings(tokens, messages, sessionModels) {
   const cacheRead = tokens?.cache?.read
-  if (!Number.isFinite(cacheRead) || cacheRead < 0) return { missing: true }
+  if (!Number.isFinite(cacheRead) || cacheRead < 0) return { known: false, missing: true }
   if (cacheRead === 0) return { total: 0, known: true }
-  if (!Array.isArray(messages)) return { missing: true }
-  if (hasCompletedCompaction(messages)) return { missing: true }
+  if (!Array.isArray(messages)) return { known: false, missing: true }
+  const compacted = hasCompletedCompaction(messages)
 
   const calls = messages
     .map((message) => message?.info ?? message)
     .filter((info) => info?.type === "assistant")
-  if (calls.length === 0) return { missing: true }
+  if (calls.length === 0) return { known: false, missing: true }
 
   let total = 0
   let summedRead = 0
   for (const info of calls) {
     const read = info.tokens?.cache?.read
-    // Every retained assistant call must be attributable, otherwise the estimate
-    // would silently undercount what the lifetime counter already booked.
-    if (!Number.isFinite(read) || read < 0) return { missing: true }
-    if (read === 0) continue
+    // A call without cache reads carries none to attribute, so it cannot make the
+    // session's coverage unknown.
+    if (read == null || read === 0) continue
+    if (!Number.isFinite(read) || read < 0) return { known: false, missing: true }
     summedRead += read
 
     const pricing = getModelBaseCost(findModel(info.model, sessionModels))
@@ -48,15 +49,16 @@ function sessionSavings(tokens, messages, sessionModels) {
     if (
       !Number.isFinite(inputRate) || inputRate < 0 ||
       !Number.isFinite(cacheRate) || cacheRate < 0
-    ) return { missing: true }
+    ) return { known: false, missing: true }
 
     const estimate = (read * (inputRate - cacheRate)) / 1_000_000
-    if (!Number.isFinite(total + estimate)) return { missing: true }
+    if (!Number.isFinite(total + estimate)) return { known: false, missing: true }
     total += estimate
   }
   // Lifetime counter books reads that no retained call reports: the messages do not
   // cover them, so a total would be false rather than a lower bound.
-  if (summedRead === 0) return { missing: true }
+  if (summedRead === 0) return { known: false, missing: true }
+  if (compacted || summedRead < cacheRead) return { total, known: true, missing: true }
   return { total, known: true }
 }
 
@@ -89,12 +91,11 @@ export function aggregateUsage(sessionIDs, getSession, getMessages, models) {
 
     const sessionModels = typeof models === "function" ? models(sessionID) : models
     const coverage = sessionSavings(tokens, getMessages(sessionID), sessionModels)
-    if (coverage.missing) {
-      saved.missing += 1
-    } else {
+    if (coverage.known) {
       saved.known += 1
       saved.total += coverage.total
     }
+    if (coverage.missing) saved.missing += 1
   }
 
   return hasUsage && Object.values(valid).some(Boolean)
