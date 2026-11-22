@@ -33,12 +33,14 @@ function sessionSavings(tokens, messages, sessionModels) {
   if (calls.length === 0) return { missing: true }
 
   let total = 0
+  let summedRead = 0
   for (const info of calls) {
     const read = info.tokens?.cache?.read
     // Every retained assistant call must be attributable, otherwise the estimate
     // would silently undercount what the lifetime counter already booked.
     if (!Number.isFinite(read) || read < 0) return { missing: true }
     if (read === 0) continue
+    summedRead += read
 
     const pricing = getModelBaseCost(findModel(info.model, sessionModels))
     const inputRate = pricing?.input
@@ -52,6 +54,9 @@ function sessionSavings(tokens, messages, sessionModels) {
     if (!Number.isFinite(total + estimate)) return { missing: true }
     total += estimate
   }
+  // Lifetime counter books reads that no retained call reports: the messages do not
+  // cover them, so a total would be false rather than a lower bound.
+  if (summedRead === 0) return { missing: true }
   return { total, known: true }
 }
 

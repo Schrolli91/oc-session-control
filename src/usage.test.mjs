@@ -234,6 +234,25 @@ test("leaves cache savings unpriced when message history cannot establish a mode
   assert.deepEqual(usage.saved, { total: 0, known: 0, missing: 1 })
 })
 
+test("leaves cache savings unpriced when no retained call reports cache reads", () => {
+  const usage = aggregateUsage(
+    ["main"],
+    () => ({
+      model: { providerID: "provider", id: "model" },
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } },
+    }),
+    () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "model" },
+        tokens: { input: 5, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      },
+    }],
+    [{ providerID: "provider", modelID: "model", cost: { input: 1, cache: { read: 0.1 } } }],
+  )
+  assert.deepEqual(usage.saved, { total: 0, known: 0, missing: 1 })
+})
+
 test("keeps usage available when message history has a malformed shape", () => {
   const usage = aggregateUsage(
     ["main"],

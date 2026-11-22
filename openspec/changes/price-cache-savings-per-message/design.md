@@ -32,7 +32,7 @@ Token *aggregation* (input/cacheRead/cacheWrite/output/reasoning for the usage o
 *Why:* the degradation rule then exists in one place instead of two, and the three cost rows become consistent. *Alternative considered:* a `partial: boolean` flag next to `savedCost` — rejected, it duplicates `formatTotal`'s logic.
 
 **3. A session contributes `missing` when its cache reads cannot be fully attributed, `known` otherwise.**
-A session is `missing` when its cache-read counter is unusable, when it reports cache reads but has no usable message list, when its history contains a completed compaction (older calls are gone), or when any cache-read-bearing assistant call cannot be resolved to a model with both required prices. A session with zero cache reads contributes `known` at `0`, so an all-zero family still renders `~$0.0000`.
+A session is `missing` when its cache-read counter is unusable, when it reports cache reads but has no usable message list, when its history contains a completed compaction (older calls are gone), when no retained call reports a cache read while the counter does (the number would be false, not a lower bound), or when any cache-read-bearing assistant call cannot be resolved to a model with both required prices. A session with zero cache reads contributes `known` at `0`, so an all-zero family still renders `~$0.0000`.
 
 **4. Compaction downgrades to partial instead of unavailable.**
 Today a compaction in any session blanks the row for everyone. Under the new rule that session is `missing` and the rest of the family's priced savings still show, with ` (partial)` attached. *Why:* the number that remains is a lower bound that is explicitly labelled as such, which is what `formatTotal` already communicates for costs.
