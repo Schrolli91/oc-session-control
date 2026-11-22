@@ -10,16 +10,20 @@ name: PR
 # pull_request_target so PRs from forks are covered too (they only get a
 # read-only token on plain pull_request events). Safety rules for this file:
 # never check out or execute anything from the PR, pass the PR title only
-# through env:, and talk to nothing but the API. The workflow always runs
-# the version from main, so a PR cannot tamper with these jobs.
+# through env:, and talk to nothing but the API. pull_request_target always
+# runs the version from main, so a PR cannot tamper with these jobs; a
+# pull_request run instead runs the PR's own copy of this file, which is why
+# that trigger is only trusted for branches living in this repository.
 #
 # pull_request is the second trigger because GitHub withholds
 # pull_request_target from PRs that a workflow opened or pushed with its
 # GITHUB_TOKEN: release-please's release PR only ever emits pull_request
 # (opened/synchronize), and pull_request_target is not in the exception
 # GitHub makes to its no-recursion rule. Without it the required pr-title
-# check never shows up on a release PR. The pr-N concurrency group collapses
-# both events into one run, so ordinary PRs do not pay for the second trigger.
+# check never shows up on a release PR. Ordinary PRs therefore trigger this
+# workflow twice per change; cancel-in-progress is off because cancelling a
+# run leaves a failed pr-title check behind for that exact SHA, and pr-title
+# is a required check. The jobs are seconds cheap, so queueing is fine.
 
 on:
   pull_request_target:
@@ -32,11 +36,15 @@ permissions:
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   pr-title:
     runs-on: ubuntu-latest
+    # Same expression as the label job: a fork's pull_request run would be
+    # executing the fork's own pr.yml, so it must not report the required
+    # check — forks are covered by the pull_request_target run instead.
+    if: github.event_name == 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Validate PR title
         env:
