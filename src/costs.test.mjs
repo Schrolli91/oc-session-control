@@ -49,3 +49,28 @@ test("builds visible cost rows even when token usage and cache savings are unava
     { label: "Saved (est.):", value: "unavailable" },
   ])
 })
+
+test("renders the cache savings estimate from its coverage summary", () => {
+  const savedRow = (saved) => buildSessionCostRows(
+    "$0.1000",
+    { total: 0, known: 1, missing: 0 },
+    0,
+    saved,
+  )[2]
+  assert.deepEqual(savedRow({ total: 0, known: 1, missing: 0 }), {
+    label: "Saved (est.):",
+    value: "~$0.0000",
+  })
+  assert.deepEqual(savedRow({ total: 1.2345, known: 2, missing: 0 }), {
+    label: "Saved (est.):",
+    value: "~$1.2345",
+  })
+  assert.deepEqual(savedRow({ total: 1.2345, known: 1, missing: 1 }), {
+    label: "Saved (est.):",
+    value: "~$1.2345 (partial)",
+  })
+  assert.deepEqual(savedRow({ total: 0, known: 0, missing: 2 }), {
+    label: "Saved (est.):",
+    value: "unavailable",
+  })
+})

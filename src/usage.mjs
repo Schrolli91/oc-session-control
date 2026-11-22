@@ -9,12 +9,57 @@ export function latestAssistantUsage(messages) {
   return undefined
 }
 
+function hasCompletedCompaction(messages) {
+  return messages.some((message) => {
+    const type = message?.type ?? message?.info?.type
+    const status = message?.status ?? message?.info?.status
+    return type === "compaction" && status === "completed"
+  })
+}
+
+// Price each assistant call under the model it was billed under, so a model switch
+// no longer invalidates the session's estimate. Returns { total, known: true } or
+// { missing: true } when the session's cache reads cannot be fully attributed.
+function sessionSavings(tokens, messages, sessionModels) {
+  const cacheRead = tokens?.cache?.read
+  if (!Number.isFinite(cacheRead) || cacheRead < 0) return { missing: true }
+  if (cacheRead === 0) return { total: 0, known: true }
+  if (!Array.isArray(messages)) return { missing: true }
+  if (hasCompletedCompaction(messages)) return { missing: true }
+
+  const calls = messages
+    .map((message) => message?.info ?? message)
+    .filter((info) => info?.type === "assistant")
+  if (calls.length === 0) return { missing: true }
+
+  let total = 0
+  for (const info of calls) {
+    const read = info.tokens?.cache?.read
+    // Every retained assistant call must be attributable, otherwise the estimate
+    // would silently undercount what the lifetime counter already booked.
+    if (!Number.isFinite(read) || read < 0) return { missing: true }
+    if (read === 0) continue
+
+    const pricing = getModelBaseCost(findModel(info.model, sessionModels))
+    const inputRate = pricing?.input
+    const cacheRate = pricing?.cache?.read
+    if (
+      !Number.isFinite(inputRate) || inputRate < 0 ||
+      !Number.isFinite(cacheRate) || cacheRate < 0
+    ) return { missing: true }
+
+    const estimate = (read * (inputRate - cacheRate)) / 1_000_000
+    if (!Number.isFinite(total + estimate)) return { missing: true }
+    total += estimate
+  }
+  return { total, known: true }
+}
+
 export function aggregateUsage(sessionIDs, getSession, getMessages, models) {
   const totals = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0 }
   const valid = Object.fromEntries(Object.keys(totals).map((field) => [field, true]))
+  const saved = { total: 0, known: 0, missing: 0 }
   let hasUsage = false
-  let savedCost = 0
-  let hasUnpricedCache = false
 
   for (const sessionID of new Set(sessionIDs.filter(Boolean))) {
     const session = getSession(sessionID)
@@ -37,71 +82,20 @@ export function aggregateUsage(sessionIDs, getSession, getMessages, models) {
       }
     }
 
-    const cacheRead = tokens.cache?.read
-    if (!Number.isFinite(cacheRead) || cacheRead < 0) {
-      hasUnpricedCache = true
-      continue
-    }
-    if (cacheRead === 0) continue
-
-    const messages = getMessages(sessionID)
-    if (!Array.isArray(messages)) {
-      hasUnpricedCache = true
-      continue
-    }
-    const hasCompaction = messages.some((message) => {
-      const type = message?.type ?? message?.info?.type
-      const status = message?.status ?? message?.info?.status
-      return type === "compaction" && status === "completed"
-    })
-    if (hasCompaction) {
-      hasUnpricedCache = true
-      continue
-    }
-
-    const assistantModels = messages
-      .map((message) => message?.info ?? message)
-      .filter((info) => info?.type === "assistant" && info.model)
-      .map((info) => info.model)
-    if (assistantModels.length === 0) {
-      hasUnpricedCache = true
-      continue
-    }
-    const modelRefs = [...assistantModels, ...(session.model ? [session.model] : [])]
-    const uniqueModels = new Set(modelRefs
-      .filter((modelRef) => modelRef?.providerID && modelRef?.id)
-      .map((modelRef) => JSON.stringify([modelRef.providerID, modelRef.id])))
-    if (uniqueModels.size > 1) {
-      hasUnpricedCache = true
-      continue
-    }
-
-    const modelRef = assistantModels.at(-1)
     const sessionModels = typeof models === "function" ? models(sessionID) : models
-    const pricing = getModelBaseCost(findModel(modelRef, sessionModels))
-    const inputRate = pricing?.input
-    const cacheRate = pricing?.cache?.read
-    if (
-      !Number.isFinite(inputRate) || inputRate < 0 ||
-      !Number.isFinite(cacheRate) || cacheRate < 0
-    ) {
-      hasUnpricedCache = true
-      continue
+    const coverage = sessionSavings(tokens, getMessages(sessionID), sessionModels)
+    if (coverage.missing) {
+      saved.missing += 1
+    } else {
+      saved.known += 1
+      saved.total += coverage.total
     }
-
-    const estimate = (cacheRead * (inputRate - cacheRate)) / 1_000_000
-    if (!Number.isFinite(savedCost + estimate)) {
-      hasUnpricedCache = true
-      continue
-    }
-    // Lifetime counters outlive message history, so price only when available history supports one model.
-    savedCost += estimate
   }
 
   return hasUsage && Object.values(valid).some(Boolean)
     ? {
         ...Object.fromEntries(Object.entries(totals).map(([field, value]) => [field, valid[field] ? value : undefined])),
-        savedCost: hasUnpricedCache ? undefined : savedCost,
+        saved,
       }
     : undefined
 }

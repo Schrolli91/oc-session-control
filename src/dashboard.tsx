@@ -186,7 +186,7 @@ export function Dashboard(props) {
             mainRow()?.cost,
             subagentCosts(),
             viewModel().subagentCount,
-            usage()?.savedCost,
+            usage()?.saved,
           )}>
             {(row) => <UsageStat colors={colors} label={row.label} value={row.value} />}
           </For>
