@@ -12,9 +12,19 @@ name: PR
 # never check out or execute anything from the PR, pass the PR title only
 # through env:, and talk to nothing but the API. The workflow always runs
 # the version from main, so a PR cannot tamper with these jobs.
+#
+# pull_request is the second trigger because GitHub withholds
+# pull_request_target from PRs that a workflow opened or pushed with its
+# GITHUB_TOKEN: release-please's release PR only ever emits pull_request
+# (opened/synchronize), and pull_request_target is not in the exception
+# GitHub makes to its no-recursion rule. Without it the required pr-title
+# check never shows up on a release PR. The pr-N concurrency group collapses
+# both events into one run, so ordinary PRs do not pay for the second trigger.
 
 on:
   pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  pull_request:
     types: [opened, edited, reopened, synchronize]
 
 permissions:
@@ -60,6 +70,10 @@ jobs:
 
   label:
     needs: pr-title
+    # On fork PRs the pull_request run carries a read-only token, so only the
+    # pull_request_target run may label there. Everything else (same-repo PRs,
+    # including release-please's) is writable either way.
+    if: github.event_name == 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
