@@ -4,6 +4,7 @@
 
 - [x] 1.1 Backfill every remaining message page in `refreshSession` (`src/session-tracker.ts`): after the existing syncs, call `session.message.loadMore(id, { all: true })` while `more(id)` is true and `loading(id)` is false — verify with a new `session-tracker.test.mjs` case whose fake message store reports `more() === true`, records the `loadMore(all: true)` call, then reports `more() === false`
 - [x] 1.2 Keep loaded history across usage refreshes: add a `messages` flag to `refreshSession`, pass it as `false` from `session.usage.updated` and `session.status`, and fall back to a message sync only when the message list is empty — verify with a `session-tracker.test.mjs` case asserting `usage.updated` does not call `message.invalidate`/`message.sync` on a non-empty list, does call them on an empty list, and that `session.compaction.ended` still syncs unconditionally
+- [x] 1.3 Do not let a history-changing refresh be swallowed by a lighter one already in flight: when `refreshSession` is called with `messages: true` while a `messages: false` refresh is running, chain the message sync behind it instead of returning the in-flight promise — verify with a `session-tracker.test.mjs` case that starts a light refresh, then a history-changing one, and asserts `message.sync` runs exactly once
 
 ## 2. Price the whole session
 

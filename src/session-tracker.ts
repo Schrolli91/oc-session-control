@@ -102,11 +102,17 @@ export function createSessionTracker(context, location) {
 
   const refreshSession = (id, { messages = true } = {}) => {
     if (!id || disposed) return Promise.resolve()
-    if (refreshes.has(id)) return refreshes.get(id)
-    const pending = (async () => {
-      // The newest-page sync drops everything older, so only history-changing
-      // refreshes may run it; step events already append messages in place.
-      const refreshMessages = messages || (context.data.session.message.list(id) ?? []).length === 0
+    // The newest-page sync drops everything older, so only history-changing
+    // refreshes may run it; step events already append messages in place.
+    const refreshMessages = messages || (context.data.session.message.list(id) ?? []).length === 0
+    const pending = refreshes.get(id)
+    if (pending) {
+      // A history-changing request must not be swallowed by a lighter refresh that
+      // is already running, or compaction/revert would keep a stale transcript.
+      if (!refreshMessages || pending.messages) return pending.promise
+      return pending.promise.then(() => refreshSession(id, { messages: true }))
+    }
+    const work = (async () => {
       context.data.session.invalidate(id)
       context.data.session.permission.invalidate(id)
       if (refreshMessages) context.data.session.message.invalidate(id)
@@ -124,10 +130,10 @@ export function createSessionTracker(context, location) {
       context.data.session.form.invalidate(id, targetLocation)
       await context.data.session.form.sync(id, targetLocation)
     })()
-    const refresh = pending.finally(() => {
-      if (refreshes.get(id) === refresh) refreshes.delete(id)
+    const refresh = work.finally(() => {
+      if (refreshes.get(id)?.promise === refresh) refreshes.delete(id)
     })
-    refreshes.set(id, refresh)
+    refreshes.set(id, { promise: refresh, messages: refreshMessages })
     return refresh
   }
 

@@ -40,6 +40,8 @@ That event's own client handler only patches `session.info` (cost/tokens). Assis
 
 *Alternative considered:* the audit's minimal fix (never sync a non-empty list) — rejected, it would leave reverted sessions stale.
 
+Because refreshes are deduplicated per session, a history-changing request that arrives while a lighter one is in flight would otherwise return the in-flight promise and lose its message sync. It is chained behind it instead: `pending.promise.then(() => refreshSession(id, { messages: true }))`.
+
 ### D3 — `sessionSavings` returns `{ total, known, missing }`
 
 `known` means "a priceable number exists for this session", `missing` means "that number does not cover the whole session". `aggregateUsage` accumulates `total` whenever `known`, and increments `missing` whenever the coverage is partial; `formatTotal` already prints `unavailable` for `known === 0` and appends `(partial)` for `missing > 0`.

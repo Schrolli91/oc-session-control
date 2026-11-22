@@ -127,6 +127,25 @@ test("keeps loaded history while usage and status events refresh a session", asy
   tracker.dispose()
 })
 
+test("chains a history-changing refresh behind a lighter one that is running", async () => {
+  const { context, calls, count } = makeContext()
+  context.data.session.message.list = () => [{}]
+  context.data.session.sync = () => {
+    count("session.sync")
+    return new Promise((resolve) => setImmediate(resolve))
+  }
+  const tracker = createSessionTracker(context, context.location)
+
+  const light = tracker.refreshSession("session-1", { messages: false })
+  const history = tracker.refreshSession("session-1", { messages: true })
+  assert.equal(calls.get("message.sync"), undefined)
+
+  await Promise.all([light, history])
+  assert.equal(calls.get("message.sync"), 1)
+  assert.equal(calls.get("message.invalidate"), 1)
+  tracker.dispose()
+})
+
 test("retains last-known render data until a replacement arrives", () => {
   const { context } = makeContext()
   let session = { title: "Known title" }
