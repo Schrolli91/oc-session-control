@@ -7,11 +7,11 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- Omit the “Subagents:” row when the family has no subagent, without touching Mainagent or Saved (est.) rows.
+- Omit the “Subagents:” and “Mainagent:” rows when the family has no subagent — the heading already carries the whole total, so the Mainagent row would only repeat it. Keep “Saved (est.):” always visible.
 
 **Non-Goals:**
 - Changing the “Session usage” heading total, the per-agent list, or any other cost row.
-- Hiding the row when subagents exist but cost `$0.0000` — visibility follows subagent count, not price.
+- Hiding the rows when subagents exist but cost `$0.0000` — visibility follows subagent count, not price.
 
 ## Decisions
 
@@ -20,5 +20,6 @@
 
 ## Risks / Trade-offs
 
-- Heading no longer equals a visible row sum when only Mainagent shows → the heading still equals the sum of *visible* rows, since hidden rows contribute zero.
+- Heading has no indented cost rows left without subagents → the spec now says the heading alone carries the total in that case, so no row sum contradicts it.
+- `src/dashboard.test.mjs` renders without subagents and asserted `/Mainagent:/` → the assertion flips to the row being absent; the heading still shows `$1.2345`.
 - Tests asserting the `$0.0000` row without subagents must be updated, not deleted.

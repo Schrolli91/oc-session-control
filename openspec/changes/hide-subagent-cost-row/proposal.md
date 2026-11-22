@@ -2,13 +2,12 @@
 
 ## Why
 
-Sessions without subagents still show a “Subagents:” row with `$0.0000` under “Session usage”. It is dead weight: the row carries no information when no subagent exists.
+Sessions without subagents still show a “Subagents:” row with `$0.0000` under “Session usage”, and a “Mainagent:” row that only repeats the heading total. Both rows carry no information when no subagent exists.
 
 ## What Changes
 
-- The “Subagents:” row under “Session usage” is only rendered when the session family has at least one subagent (`subagentCount > 0`).
-- When subagents exist but have spent nothing, the row stays visible and shows `$0.0000` (visibility is decided by subagent count, never by price).
-- The “Mainagent:” and “Saved (est.):” rows are unchanged.
+- The “Mainagent:” and “Subagents:” rows under “Session usage” are only rendered when the session family has at least one subagent (`subagentCount > 0`). Without subagents, the heading alone carries the total and only “Saved (est.):” is listed.
+- When subagents exist but have spent nothing, both rows stay visible and “Subagents:” reads `$0.0000` (visibility is decided by subagent count, never by price).
 
 ## Capabilities
 
@@ -22,7 +21,7 @@ Sessions without subagents still show a “Subagents:” row with `$0.0000` unde
 
 ## Impact
 
-- `src/costs.mjs` — `buildSessionCostRows` drops the Subagents row when `subagentCount === 0`.
-- `src/costs.test.mjs` — tests asserting the `$0.0000` row without subagents.
-- `openspec/specs/oc-session-control/spec.md` — scenarios “No subagents are present” and “Cost section is expanded by default”.
+- `src/costs.mjs` — `buildSessionCostRows` drops the Mainagent and Subagents rows when `subagentCount === 0`.
+- `src/costs.test.mjs`, `src/dashboard.test.mjs` — tests asserting the rows without subagents.
+- `openspec/specs/oc-session-control/spec.md` — “Show total session costs” (row visibility, single-counting wording) and the “Saved (est.)” row-ordering scenario.
 - No API, dependency, or data changes.

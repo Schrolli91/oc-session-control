@@ -91,7 +91,8 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     const frame = setup.captureCharFrame()
     assert.match(frame, /Session usage/)
     assert.match(frame, /\$1\.2345/)
-    assert.match(frame, /Mainagent:/)
+    // Ohne Subagenten gibt es keine Kostenzeile — der Wert steht nur im Heading.
+    assert.doesNotMatch(frame, /Mainagent:/)
     assert.match(frame, /Saved \(est\.\):/)
     assert.match(frame, /Session Total\s+1M tok/)
     assert.match(frame, /Cache Hit\s+1M tok/)

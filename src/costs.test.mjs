@@ -50,14 +50,14 @@ test("builds visible cost rows even when token usage and cache savings are unava
   ])
 })
 
-test("hides the Subagents row without subagents but keeps it for free subagents", () => {
+test("hides both cost rows without subagents but keeps them for free subagents", () => {
   const labels = (count) => buildSessionCostRows(
     "$0.1000",
     { total: 0, known: 1, missing: 0 },
     count,
     undefined,
   ).map((row) => row.label)
-  assert.deepEqual(labels(0), ["Mainagent:", "Saved (est.):"])
+  assert.deepEqual(labels(0), ["Saved (est.):"])
   assert.deepEqual(buildSessionCostRows(
     "$0.1000",
     { total: 0, known: 1, missing: 0 },

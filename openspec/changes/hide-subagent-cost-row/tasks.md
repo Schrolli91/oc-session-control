@@ -9,4 +9,9 @@
 ## 2. Integration checks
 
 - [x] 2.1 Run `npm test` and `npm run check` and verify both succeed.
-- [ ] 2.2 In a running OpenCode session without subagents, verify “Session usage” shows only “Mainagent:” and “Saved (est.):”; with a subagent, verify “Subagents:” reappears.
+- [ ] 2.2 In a running OpenCode session without subagents, verify “Session usage” shows only “Saved (est.):” under the heading; with a subagent, verify “Mainagent:” and “Subagents:” reappear.
+
+## 3. Mainagent row
+
+- [x] 3.1 In `src/costs.mjs`, also omit the “Mainagent:” row when `subagentCount === 0` so only “Saved (est.):” remains, and verify `node --test src/costs.test.mjs` passes.
+- [x] 3.2 Update the no-subagent expectations in `src/costs.test.mjs` and flip the `/Mainagent:/` assertion in `src/dashboard.test.mjs` to absent, then verify `npm run build && npm test` and `npm run check` succeed.
