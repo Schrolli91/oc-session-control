@@ -43,19 +43,32 @@ test("aggregates token usage and estimated cache savings across the session fami
       { tier: { type: "context", size: 200_000 }, input: 2, output: 4, cache: { read: 0.2, write: 2.5 } },
     ],
   }]
-  assert.deepEqual(aggregateUsage(
+  const usage = aggregateUsage(
     ["main", "child", "child"],
     (id) => sessions[id],
-    (id) => [{ type: "assistant", model: sessions[id].model }],
+    (id) => [{
+      type: "assistant",
+      model: sessions[id].model,
+      tokens: { ...sessions[id].tokens },
+    }],
     models,
-  ), {
+  )
+  assert.deepEqual({
+    input: usage.input,
+    cacheRead: usage.cacheRead,
+    cacheWrite: usage.cacheWrite,
+    output: usage.output,
+    reasoning: usage.reasoning,
+  }, {
     input: 150,
     cacheRead: 3_000_000,
     cacheWrite: 30,
     output: 50,
     reasoning: 15,
-    savedCost: 2.7,
   })
+  assert.equal(usage.saved.known, 2)
+  assert.equal(usage.saved.missing, 0)
+  assert.ok(Math.abs(usage.saved.total - 2.7) < Number.EPSILON)
 })
 
 test("uses the matching session location's model catalog for cache savings", () => {
@@ -76,10 +89,16 @@ test("uses the matching session location's model catalog for cache savings", () 
   const usage = aggregateUsage(
     ["main", "child"],
     (id) => sessions[id],
-    (id) => [{ type: "assistant", model: sessions[id].model }],
+    (id) => [{
+      type: "assistant",
+      model: sessions[id].model,
+      tokens: { ...sessions[id].tokens },
+    }],
     (id) => modelsBySession[id],
   )
-  assert.ok(Math.abs(usage.savedCost - 2.7) < Number.EPSILON)
+  assert.equal(usage.saved.known, 2)
+  assert.equal(usage.saved.missing, 0)
+  assert.ok(Math.abs(usage.saved.total - 2.7) < Number.EPSILON)
 })
 
 test("builds input, output, and session totals from the aggregated session family", () => {
@@ -128,7 +147,7 @@ test("aggregates persistent counters independently when a family field is missin
     cacheWrite: 1,
     output: undefined,
     reasoning: 13,
-    savedCost: undefined,
+    saved: { total: 0, known: 1, missing: 1 },
   })
 })
 
@@ -153,7 +172,7 @@ test("preserves valid zero counters in aggregated usage", () => {
     cacheWrite: 0,
     output: 0,
     reasoning: 0,
-    savedCost: 0,
+    saved: { total: 0, known: 1, missing: 0 },
   })
 })
 
@@ -186,17 +205,23 @@ test("omits usage bar widths for missing, invalid, or zero distributions", () =>
   }
 })
 
-test("leaves estimated cache savings unavailable when model pricing is missing", () => {
+test("leaves estimated cache savings unpriced when model pricing is missing", () => {
   const usage = aggregateUsage(
     ["main"],
     () => ({ tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1, write: 0 } } }),
-    () => [{ info: { type: "assistant", model: { providerID: "provider", id: "unknown" } } }],
+    () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "unknown" },
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1, write: 0 } },
+      },
+    }],
     [],
   )
-  assert.equal(usage.savedCost, undefined)
+  assert.deepEqual(usage.saved, { total: 0, known: 0, missing: 1 })
 })
 
-test("leaves cache savings unavailable when message history cannot establish a model", () => {
+test("leaves cache savings unpriced when message history cannot establish a model", () => {
   const usage = aggregateUsage(
     ["main"],
     () => ({
@@ -206,7 +231,26 @@ test("leaves cache savings unavailable when message history cannot establish a m
     () => [],
     [{ providerID: "provider", modelID: "model", cost: { input: 1, cache: { read: 0.1 } } }],
   )
-  assert.equal(usage.savedCost, undefined)
+  assert.deepEqual(usage.saved, { total: 0, known: 0, missing: 1 })
+})
+
+test("leaves cache savings unpriced when no retained call reports cache reads", () => {
+  const usage = aggregateUsage(
+    ["main"],
+    () => ({
+      model: { providerID: "provider", id: "model" },
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } },
+    }),
+    () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "model" },
+        tokens: { input: 5, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      },
+    }],
+    [{ providerID: "provider", modelID: "model", cost: { input: 1, cache: { read: 0.1 } } }],
+  )
+  assert.deepEqual(usage.saved, { total: 0, known: 0, missing: 1 })
 })
 
 test("keeps usage available when message history has a malformed shape", () => {
@@ -222,45 +266,63 @@ test("keeps usage available when message history has a malformed shape", () => {
     cacheWrite: 0,
     output: 2,
     reasoning: 0,
-    savedCost: undefined,
+    saved: { total: 0, known: 0, missing: 1 },
   })
   assert.equal(latestAssistantUsage({ unexpected: true }), undefined)
   assert.equal(lastCacheCallStats(["main"], () => ({ unexpected: true })), undefined)
 })
 
-test("leaves lifetime cache savings unavailable when session history uses multiple models", () => {
+test("prices each call under its own model when session history switches models", () => {
   const usage = aggregateUsage(
     ["main"],
     () => ({
-      model: { providerID: "provider", id: "model-a" },
+      model: { providerID: "provider", id: "model-b" },
       tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } },
     }),
     () => [
-      { info: { type: "assistant", model: { providerID: "provider", id: "model-a" } } },
-      { info: { type: "assistant", model: { providerID: "provider", id: "model-b" } } },
+      { info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "model-a" },
+        tokens: { input: 0, cache: { read: 600_000, write: 0 } },
+      } },
+      { info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "model-b" },
+        tokens: { input: 0, cache: { read: 400_000, write: 0 } },
+      } },
     ],
     [
       { providerID: "provider", modelID: "model-a", cost: { input: 1, cache: { read: 0.1 } } },
       { providerID: "provider", modelID: "model-b", cost: { input: 2, cache: { read: 0.2 } } },
     ],
   )
-  assert.equal(usage.savedCost, undefined)
+  assert.equal(usage.saved.known, 1)
+  assert.equal(usage.saved.missing, 0)
+  assert.ok(Math.abs(usage.saved.total - 1.26) < 1e-12)
 })
 
-test("leaves lifetime cache savings unavailable after compaction", () => {
-  const usage = aggregateUsage(
-    ["main"],
-    () => ({
+test("marks only the compacted session as unpriced", () => {
+  const pricedCall = {
+    info: {
+      type: "assistant",
       model: { providerID: "provider", id: "model-a" },
-      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } },
-    }),
-    () => [
-      { type: "compaction", status: "completed" },
-      { info: { type: "assistant", model: { providerID: "provider", id: "model-a" } } },
-    ],
+      tokens: { input: 0, cache: { read: 1_000_000, write: 0 } },
+    },
+  }
+  const usage = aggregateUsage(
+    ["main", "child"],
+    (id) => ({
+      main: { tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } },
+      child: { tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } },
+    })[id],
+    (id) => id === "main"
+      ? [{ type: "compaction", status: "completed" }, pricedCall]
+      : [pricedCall],
     [{ providerID: "provider", modelID: "model-a", cost: { input: 1, cache: { read: 0.1 } } }],
   )
-  assert.equal(usage.savedCost, undefined)
+  assert.equal(usage.saved.known, 1)
+  assert.equal(usage.saved.missing, 1)
+  assert.ok(Math.abs(usage.saved.total - 0.9) < 1e-12)
 })
 
 test("formats token totals with compact suffixes", () => {

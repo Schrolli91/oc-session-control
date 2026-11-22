@@ -36,7 +36,7 @@ export function formatTotal(summary) {
   return summary.missing > 0 ? `${total} (partial)` : total
 }
 
-export function buildSessionCostRows(mainCost, subagentCosts, subagentCount, savedCost) {
+export function buildSessionCostRows(mainCost, subagentCosts, subagentCount, saved) {
   return [
     { label: "Mainagent:", value: mainCost ?? "unavailable" },
     {
@@ -47,8 +47,8 @@ export function buildSessionCostRows(mainCost, subagentCosts, subagentCount, sav
     },
     {
       label: "Saved (est.):",
-      value: Number.isFinite(savedCost)
-        ? `~${formatTotal({ total: savedCost, known: 1, missing: 0 })}`
+      value: saved && saved.known > 0
+        ? `~${formatTotal(saved)}`
         : "unavailable",
     },
   ]
