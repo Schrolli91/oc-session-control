@@ -15,7 +15,9 @@ jobs:
           node-version: 26.4.0
       - run: npm ci
       - run: npm run build
-      - run: npm test
+      # --experimental-ffi: die Dashboard-Render-Tests brauchen den nativen
+      # OpenTUI-Renderer (Node >= 26.4). Lokal ohne Flag überspringen sie sich.
+      - run: node --experimental-ffi --test "src/**/*.test.mjs"
       - run: npm run check
       - run: npm pack
       - run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'
