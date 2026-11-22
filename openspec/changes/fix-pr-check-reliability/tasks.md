@@ -16,7 +16,7 @@
 
 ## 4. Integration verification
 
-- [ ] 4.1 Open a PR from this branch and verify that `test` and `pr-title` report without any manual run approval, noting that `label` cannot run yet because `label.yml` is not on the default branch.
+- [x] 4.1 Open a PR from this branch and verify that `test` and `pr-title` report without any manual run approval, noting that `label` cannot run yet because `label.yml` is not on the default branch.
 - [ ] 4.2 After merge, open a follow-up PR and verify `label` appears on its own together with `test` and `pr-title`, for a same-repository branch and, when one is available, for a fork PR.
 - [ ] 4.3 On the next release-please PR, verify `test` and `pr-title` report without the "Approve workflows to run" banner and the type label appears on its own; if `RELEASE_PLEASE_TOKEN` is not yet set, verify the run is approval-required instead of missing entirely and record which case was observed.
 
