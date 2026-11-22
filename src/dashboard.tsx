@@ -273,7 +273,7 @@ export function Dashboard(props) {
                 <text fg={colors().text.muted}>TTL:</text>
                 <box flexDirection="row">
                   <text fg={cacheCalls()?.timestamp === undefined
-                    ? colors().text.faint
+                    ? colors().text.muted
                     : colors().cacheTTL[cacheTtlStatus(cacheAge())]}>●</text>
                   <text fg={colors().text.muted}> {formatElapsed(cacheAge())}</text>
                 </box>
