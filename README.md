@@ -26,7 +26,7 @@ Restart OpenCode afterwards. If you installed the plugin manually, delete the co
 
 The sidebar updates with the current session and has these sections:
 
-- Session usage: main agent cost, subagent cost, and estimated cache savings (`Saved (est.)`).
+- Session usage: family total in the heading, main agent and subagent cost rows when subagents exist, and estimated cache savings (`Saved (est.)`).
 - Session Total: combined input, cache reads and writes, output, and reasoning tokens, with bars per group. It is a token count, not context-window usage.
 - Cache: hit rate, change since the last call, and TTL status.
 - Mainagent: status spinner, model, context percentage and bar, and cost. Click the model name to open model details.

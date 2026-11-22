@@ -37,19 +37,18 @@ export function formatTotal(summary) {
 }
 
 export function buildSessionCostRows(mainCost, subagentCosts, subagentCount, saved) {
+  const savedRow = {
+    label: "Saved (est.):",
+    value: saved && saved.known > 0
+      ? `~${formatTotal(saved)}`
+      : "unavailable",
+  }
+
+  if (subagentCount === 0) return [savedRow]
+
   return [
     { label: "Mainagent:", value: mainCost ?? "unavailable" },
-    {
-      label: "Subagents:",
-      value: subagentCount === 0
-        ? formatTotal({ total: 0, known: 1, missing: 0 })
-        : formatTotal(subagentCosts),
-    },
-    {
-      label: "Saved (est.):",
-      value: saved && saved.known > 0
-        ? `~${formatTotal(saved)}`
-        : "unavailable",
-    },
+    { label: "Subagents:", value: formatTotal(subagentCosts) },
+    savedRow,
   ]
 }
