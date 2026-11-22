@@ -39,6 +39,65 @@ test("builds rows when message history has a malformed shape", () => {
   assert.deepEqual(rows.map((row) => row.context), ["unavailable", "unavailable"])
 })
 
+test("reports the selected model while keeping context on the model that reported it", () => {
+  const rows = rowsFor({
+    getSession: (id) => ({ title: id, model: { providerID: "provider", id: "selected" } }),
+    getMessages: () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "used" },
+        tokens: { input: 80, cache: { read: 10, write: 10 } },
+      },
+    }],
+    getModels: () => [{
+      providerID: "provider",
+      modelID: "selected",
+      name: "Selected model",
+      limit: { context: 1_000 },
+    }, {
+      providerID: "provider",
+      modelID: "used",
+      name: "Used model",
+      limit: { context: 200 },
+    }],
+  })
+
+  assert.equal(rows[0].modelName, "Selected model")
+  assert.equal(rows[0].modelInfo.name, "Selected model")
+  assert.equal(rows[0].contextPercentage, 50)
+  assert.equal(rows[0].context, "100 / 200 tok")
+})
+
+test("falls back to the latest assistant usage when the session has no selected model", () => {
+  const rows = rowsFor({
+    getSession: () => ({}),
+    getMessages: () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "used" },
+        tokens: { input: 50, cache: { read: 0, write: 0 } },
+      },
+    }],
+    getModels: () => [{
+      providerID: "provider",
+      modelID: "used",
+      name: "Used model",
+      limit: { context: 100 },
+    }],
+  })
+
+  assert.equal(rows[0].modelName, "Used model")
+  assert.equal(rows[0].contextPercentage, 50)
+})
+
+test("reports an unavailable model when neither selection nor usage is available", () => {
+  const rows = rowsFor({ getSession: () => ({}), getMessages: () => [] })
+
+  assert.equal(rows[0].modelName, "unavailable")
+  assert.equal(rows[0].context, "unavailable")
+  assert.equal(rows[0].contextPercentage, undefined)
+})
+
 test("resolves model details against each session's model list", () => {
   const rows = rowsFor({
     getMessages: (id) => [{
@@ -50,14 +109,20 @@ test("resolves model details against each session's model list", () => {
     }],
     getModels: (id) => [{
       providerID: "provider",
+      modelID: `${id}-model`,
+      name: `${id} selected model`,
+      limit: { context: 500 },
+    }, {
+      providerID: "provider",
       modelID: `${id}-message-model`,
       name: `${id} resolved model`,
       limit: { context: 100 },
     }],
   })
 
-  assert.deepEqual(rows.map((row) => row.modelName), ["main resolved model", "child resolved model"])
-  assert.deepEqual(rows.map((row) => row.modelInfo.limit.context), [100, 100])
+  assert.deepEqual(rows.map((row) => row.modelName), ["main selected model", "child selected model"])
+  assert.deepEqual(rows.map((row) => row.modelInfo.limit.context), [500, 500])
+  assert.deepEqual(rows.map((row) => row.context), ["10 / 100 tok", "10 / 100 tok"])
 })
 
 test("reads each session model catalog once and reuses resolved model details", () => {

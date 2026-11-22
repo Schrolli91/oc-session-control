@@ -49,9 +49,15 @@ export function buildDashboardRows({
     const loadedSkillOrder = getLoadedSkillOrder(messages)
     const usage = latestAssistantUsage(messages)
     const models = getModels(row.sessionID) ?? []
-    const modelRef = usage?.model ?? getSession(row.sessionID)?.model
-    const modelInfo = findModel(modelRef, models)
-    const fill = contextFillForModel(usage, modelInfo)
+    // The row answers "which model is this session on"; the context row answers
+    // "how full was the last call's window" — the two have different sources.
+    const usageModelRef = usage?.model
+    const usageModelInfo = findModel(usageModelRef, models)
+    const modelRef = getSession(row.sessionID)?.model ?? usageModelRef
+    const sameModel = modelRef?.providerID === usageModelRef?.providerID &&
+      modelRef?.id === usageModelRef?.id
+    const modelInfo = sameModel ? usageModelInfo : findModel(modelRef, models)
+    const fill = contextFillForModel(usage, usageModelInfo)
 
     return {
       ...row,
