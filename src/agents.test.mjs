@@ -270,6 +270,11 @@ test("merges valid host neutral text colors into the mode palette and uses safe 
   const rgba = { toInts: () => [1, 2, 3, 255] }
   const colors = getThemeColors({ text: { base: rgba, muted: "#123456", faint: rgba } }, "light")
   assert.deepEqual(colors.text, { base: rgba, muted: "#123456", faint: rgba })
+  assert.deepEqual(getThemeColors({ text: { muted: "#123456", faint: "#12" } }, "light").text, {
+    base: "#24292F",
+    muted: "#123456",
+    faint: "#123456",
+  })
   assert.deepEqual(colors.agentStatus, getThemeColors({}, "light").agentStatus)
   assert.deepEqual(colors.contextFill, getThemeColors({}, "light").contextFill)
   assert.equal(typeof colors.agentStatus.working, "string")
@@ -290,6 +295,13 @@ test("merges valid host neutral text colors into the mode palette and uses safe 
       assert.ok([...Object.values(fallback.agentStatus), ...Object.values(fallback.contextFill)]
         .every((color) => /^#[0-9A-Fa-f]{6}$/.test(color)))
     }
+  }
+
+  for (const mode of ["dark", "light"]) {
+    const fallback = getThemeColors({ text: { base: "#ABCDEF", muted: "invalid", faint: "#12" } }, mode)
+    assert.equal(fallback.text.base, "#ABCDEF")
+    assert.equal(fallback.text.muted, mode === "light" ? "#57606A" : "#8B949E")
+    assert.equal(fallback.text.faint, mode === "light" ? "#6E7781" : "#6E7681")
   }
 })
 

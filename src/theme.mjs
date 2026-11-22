@@ -52,7 +52,11 @@ export function getThemeColors(theme, mode) {
     text: {
       base: isColor(hostText.base) ? hostText.base : palette.text.base,
       muted: isColor(hostText.muted) ? hostText.muted : palette.text.muted,
-      faint: isColor(hostText.faint) ? hostText.faint : palette.text.faint,
+      // OpenCode resolves a theme's missing faint to its muted color; keep that chain instead of
+      // dropping to the plugin palette while the host muted value is right there.
+      faint: isColor(hostText.faint)
+        ? hostText.faint
+        : isColor(hostText.muted) ? hostText.muted : palette.text.faint,
     },
   }
 }
