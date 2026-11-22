@@ -61,8 +61,10 @@ jobs:
         with:
           node-version: 26.4.0
           registry-url: https://registry.npmjs.org
+      # No test/build/check here: the release PR ran the full suite in CI on
+      # this exact tree, and `npm test` in this job would even be a weaker
+      # run than CI (it lacks --experimental-ffi, so the render tests are
+      # skipped). npm ci fails on a package-lock the release PR did not
+      # cover, and prepublishOnly builds dist before packing.
       - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: npm run check
       - run: npm publish --provenance --access public

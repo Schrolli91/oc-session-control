@@ -1,9 +1,40 @@
-name: Tests
+name: Checks
+
+# The type list below is the repo-wide commit vocabulary: it decides the squash
+# commit on main, the labels, and (via release-please) the CHANGELOG sections.
+# If you add a type here, add it to changelog-sections in
+# release-please-config.json too, otherwise that type never shows up in
+# CHANGELOG.md. release-please itself opens its PR as
+# `chore(main): release X.Y.Z`, which must keep matching this pattern.
+#
+# test, pr-title and label live in one workflow so a PR change costs exactly
+# one run. They used to be two files, and the second one sat on
+# pull_request_target — which GitHub never fires for PRs that a workflow
+# opened or pushed with its GITHUB_TOKEN. release-please's release PR only
+# ever emits pull_request, so the required pr-title check simply did not
+# exist there (PR #11 could not be merged until someone triggered the run by
+# hand). pull_request does fire for those PRs, which is why everything is on
+# it now. Two side effects worth knowing:
+#
+#   - pull_request runs this file as it exists in the PR, so a fork could
+#     rewrite pr-title or test to always pass. That was already true for test
+#     and is the price of not running a second, untriggerable workflow.
+#   - pull_request gets a read-only token on fork PRs, so the label job skips
+#     there instead of going red. Everything else keeps working.
+#
+# GitHub stops allowing pull_request_target by default in public repos on
+# 2026-12-02; with no such trigger left, that deadline does not apply here.
+#
+# Safety rules: never check out or execute anything from the PR, pass the PR
+# title only through env:, and talk to nothing but the API.
 
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -21,3 +52,89 @@ jobs:
       - run: npm run check
       - run: npm pack
       - run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'
+
+  pr-title:
+    # push events carry no pull request, so there is no title to check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "PR title is valid: $TITLE"
+            exit 0
+          fi
+
+          {
+            echo "### PR title does not follow Conventional Commits"
+            echo
+            echo "Received: \`$TITLE\`"
+            echo
+            echo "Expected: \`<type>(<scope>)!: <description>\`"
+            echo
+            echo "- type: feat, fix, docs, refactor, test, ci, chore, deps"
+            echo "- scope: optional, lowercase"
+            echo "- \`!\` before the colon marks a breaking change"
+            echo
+            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`, \`deps: bump @opencode/plugin\`"
+            echo
+            echo "The PR title becomes the squash commit on main and feeds the changelog."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
+          exit 1
+
+  label:
+    needs: pr-title
+    # Fork PRs only get a read-only token on pull_request; release-please's
+    # own PRs are covered because they live in this repository.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Apply type label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          type="${TITLE%%(*}"
+          type="${type%%!*}"
+          type="${type%%:*}"
+
+          case "$type" in
+            feat)   label="feature" ;;
+            fix)    label="bug" ;;
+            test)   label="tests" ;;
+            docs|refactor|ci|chore) label="$type" ;;
+            deps)   label="dependencies" ;;
+            *)
+              echo "::error::Unmapped type '$type'"
+              exit 1
+              ;;
+          esac
+
+          # comma delimiters keep the substitution entry-wise: plain
+          # "${all//ci/}" would also mangle 'dependencies' into 'dependenes'
+          all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
+          remove="${all//,$label,/,}"
+          remove="${remove#,}"
+          remove="${remove%,}"
+
+          add="$label"
+          breaking_re='^[a-z]+(\([^)]*\))?!:'
+          if [[ "$TITLE" =~ $breaking_re ]]; then
+            add="$add,breaking-change"
+            echo "Breaking change detected"
+          else
+            remove="${remove:+$remove,}breaking-change"
+          fi
+
+          gh pr edit "$PR" --repo "$REPO" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$PR as '$add'"
