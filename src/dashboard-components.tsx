@@ -148,7 +148,7 @@ export function AgentEntry(props) {
             </text>
           </box>
         </box>
-        <text fg={colors().text.muted} flexShrink={0}>{row().cost}</text>
+        <text fg={row().cost === "unavailable" ? colors().text.muted : colors().cost} flexShrink={0}>{row().cost}</text>
       </box>
       <box width="100%" flexDirection="row" justifyContent="space-between" paddingLeft={2}>
         <text fg={colors().text.muted} flexShrink={0}>Model:</text>

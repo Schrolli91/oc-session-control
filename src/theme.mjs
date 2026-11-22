@@ -4,6 +4,7 @@ const isColor = (value) => (typeof value === "string" && /^#(?:[\da-f]{3,4}|[\da
 const palettes = {
   dark: {
     text: { base: "#FFFFFF", muted: "#8B949E", faint: "#6E7681" },
+    cost: "#58A6FF",
     agentStatus: {
       working: "#58A6FF",
       complete: "#3FB950",
@@ -22,6 +23,7 @@ const palettes = {
   },
   light: {
     text: { base: "#24292F", muted: "#57606A", faint: "#6E7781" },
+    cost: "#0969DA",
     agentStatus: {
       working: "#0969DA",
       complete: "#1A7F37",
