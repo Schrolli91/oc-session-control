@@ -69,6 +69,9 @@ export function Dashboard(props) {
     const id = sessionID()
     return sessionIDsForFamily(id, sessionFamily(id))
   })
+  // The host's cost() helper already rolls the whole family into the root
+  // session, so rows and the family total read the raw per-session record instead.
+  const ownCost = (id) => context.data.session.get(id)?.cost
   const modelsForSession = (id) => context.data.location.model.list(sessionLocation(id)) ?? []
   const providersForSession = (id) => context.data.location.provider.list(sessionLocation(id)) ?? []
   createEffect(() => {
@@ -86,7 +89,7 @@ export function Dashboard(props) {
   const rows = createMemo(() => buildDashboardRows({
     sessionIDs: sessionIDs(),
     getSession: (id) => context.data.session.get(id),
-    getCost: (id) => context.data.session.cost(id),
+    getCost: (id) => ownCost(id),
     getMessages: (id) => context.data.session.message.list(id),
     getModels: modelsForSession,
     getStatus: (id) => context.data.session.status(id),
@@ -119,10 +122,10 @@ export function Dashboard(props) {
     ? Math.max(0, now() - cacheCalls().timestamp)
     : undefined
   const costs = createMemo(() =>
-    aggregateCosts(sessionIDs(), (id) => context.data.session.cost(id)),
+    aggregateCosts(sessionIDs(), (id) => ownCost(id)),
   )
   const subagentCosts = createMemo(() =>
-    aggregateCosts(subagentRows().map((row) => row.sessionID), (id) => context.data.session.cost(id)),
+    aggregateCosts(subagentRows().map((row) => row.sessionID), (id) => ownCost(id)),
   )
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
   let ttlTimer
