@@ -22,11 +22,11 @@ The dashboard MUST load from this repository's project-local OpenCode plugin dir
 - **THEN** the session overview and agent values appear in the sidebar
 
 ### Requirement: Show total session costs
-The dashboard MUST show the combined costs of the main session and all known subagents in the “Session usage” heading. The cost section MUST be expandable and collapsible, and start expanded. Every session's cost MUST be counted exactly once: the heading MUST equal the sum of the indented rows, and the “Mainagent:” row MUST carry only the main session's own cost.
+The dashboard MUST show the combined costs of the main session and all known subagents in the “Session usage” heading. The cost section MUST be expandable and collapsible, and start expanded. The “Mainagent:” and “Subagents:” rows MUST appear only when the family contains at least one subagent. Every session's cost MUST be counted exactly once: when those rows are shown, the heading MUST equal their sum and the “Mainagent:” row MUST carry only the main session's own cost; when the family has no subagents, the heading alone carries the total.
 
 #### Scenario: Total includes the agent family
 - **WHEN** cost data is available for the main session and its subagents
-- **THEN** the dashboard shows the sum of all sessions in the agent family on the right of “Session usage” and the individual or partial totals in indented gray rows
+- **THEN** the dashboard shows the sum of all sessions in the agent family on the right of “Session usage” and, when the family has subagents, the individual or partial totals in indented gray rows
 
 #### Scenario: Cost data is partially unavailable
 - **WHEN** cost data is unavailable for at least one agent in the family
@@ -38,11 +38,15 @@ The dashboard MUST show the combined costs of the main session and all known sub
 
 #### Scenario: No subagents are present
 - **WHEN** the main session has no subagents
-- **THEN** the “Subagents:” row shows `$0.0000`
+- **THEN** neither the “Mainagent:” nor the “Subagents:” row is shown under “Session usage”, and the heading alone shows the total
+
+#### Scenario: Subagents present but free
+- **WHEN** the main session has at least one subagent whose cost is `$0.0000`
+- **THEN** the “Mainagent:” and “Subagents:” rows are shown, with the “Subagents:” row reading `$0.0000`
 
 #### Scenario: Cost section is expanded by default
 - **WHEN** the session overview is first displayed
-- **THEN** “Mainagent:” and “Subagents:” are visible under “Session usage” as indented gray rows
+- **THEN** “Saved (est.):” is visible under “Session usage” as an indented gray row, and “Mainagent:” and “Subagents:” are visible there only when the family has at least one subagent
 
 #### Scenario: Collapse and expand the cost section
 - **WHEN** the user clicks “Session usage”
@@ -258,7 +262,7 @@ The dashboard MUST estimate cache savings by pricing each assistant call’s cac
 
 #### Scenario: Show Total saved as the third row
 - **WHEN** usage data is available for the session overview
-- **THEN** the dashboard shows the indented gray “Saved (est.):” row after “Mainagent:” and “Subagents:” and before Session Total
+- **THEN** the dashboard shows the indented gray “Saved (est.):” row after the visible “Mainagent:” and “Subagents:” cost rows and before Session Total, directly under the heading when no cost rows are shown
 
 #### Scenario: Model switch older than the loaded transcript
 - **WHEN** a session’s lifetime cache reads include calls made under an earlier model, and that model switch is not in the messages the client loaded by default
