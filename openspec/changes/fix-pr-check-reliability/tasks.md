@@ -2,7 +2,7 @@
 
 ## 1. Repository settings (maintainer-only, GitHub UI — no file changes)
 
-- [ ] 1.1 Create the secret `RELEASE_PLEASE_TOKEN` as a fine-grained PAT scoped to this repository with Contents: read/write and Pull requests: read/write (a GitHub App installation token works too), record its expiry date, and verify `gh secret list` shows `RELEASE_PLEASE_TOKEN`.
+- [x] 1.1 Create the secret `RELEASE_PLEASE_TOKEN` as a fine-grained PAT scoped to this repository with Contents: read/write and Pull requests: read/write (a GitHub App installation token works too), record its expiry date, and verify `gh secret list` shows `RELEASE_PLEASE_TOKEN`.
 
 ## 2. Workflows
 
