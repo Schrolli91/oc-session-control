@@ -1,9 +1,29 @@
-name: Tests
+name: Checks
+
+# test and pr-title live in one workflow so one PR event costs exactly one run
+# and both required checks report together. pull_request is the only trigger
+# left that works everywhere: forks get it, release-please's PRs get it in an
+# approval-required state (or run normally once RELEASE_PLEASE_TOKEN is set),
+# and `edited` re-validates a corrected title. pr.yml used to carry pr-title on
+# pull_request_target, which GitHub blocks by default in public repositories
+# from 2026-12-02 unless an event policy allows it; no such policy is created
+# here, so nothing in this file may depend on that trigger.
+#
+# The type list below is the repo-wide commit vocabulary: it decides the squash
+# commit on main, the labels, and (via release-please) the CHANGELOG sections.
+# If you add a type here, add it to changelog-sections in
+# release-please-config.json too, otherwise that type never shows up in
+# CHANGELOG.md. release-please itself opens its PR as
+# `chore(main): release X.Y.Z`, which must keep matching this pattern.
 
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -21,3 +41,38 @@ jobs:
       - run: npm run check
       - run: npm pack
       - run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'
+
+  pr-title:
+    # push events carry no pull request, so there is no title to check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "PR title is valid: $TITLE"
+            exit 0
+          fi
+
+          {
+            echo "### PR title does not follow Conventional Commits"
+            echo
+            echo "Received: \`$TITLE\`"
+            echo
+            echo "Expected: \`<type>(<scope>)!: <description>\`"
+            echo
+            echo "- type: feat, fix, docs, refactor, test, ci, chore, deps"
+            echo "- scope: optional, lowercase"
+            echo "- \`!\` before the colon marks a breaking change"
+            echo
+            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`, \`deps: bump @opencode/plugin\`"
+            echo
+            echo "The PR title becomes the squash commit on main and feeds the changelog."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
+          exit 1

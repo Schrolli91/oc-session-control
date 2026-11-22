@@ -44,6 +44,15 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
+          # release-please created PR #11 with the default GITHUB_TOKEN, which
+          # suppresses workflow events: its `pull_request` runs landed in
+          # action_required and `edited` created no run at all, so the required
+          # checks only appeared after manual clicks. A write-capable token makes
+          # the release PR a normal trusted PR. The fallback keeps releases
+          # working exactly as before until the secret exists (approval click
+          # included); a GitHub App token can replace the PAT without code
+          # changes, and a PAT simply expires after at most one year.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

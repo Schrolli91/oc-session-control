@@ -71,6 +71,16 @@ npm run check
 
 `npm run build` compiles `src/` into `dist/`. `npm run check` type-checks the source.
 
+### CI and releases
+
+Three workflows under `.github/workflows/`:
+
+- `Checks` (`test.yml`) runs the build, tests, type check and package check as the `test` job, and validates the conventional-commit title as the `pr-title` job. It runs on pushes to `main` and on every pull request (`opened`, `edited`, `reopened`, `synchronize`), so fixing a title re-validates it. The branch ruleset for `main` requires both `test` and `pr-title`.
+- `Label` (`label.yml`) runs when a `Checks` run for a pull request completes and applies the type label (`feat` → `feature`, `fix` → `bug`, `deps` → `dependencies`, …, plus `breaking-change`). It runs from `main` with a write-capable token, which is what lets it label fork PRs, and it never checks out PR code. Because `workflow_run` triggers are read from the default branch, the labeller starts working only after `label.yml` lands on `main`.
+- `Release` (`release.yml`) runs release-please on pushes to `main` and publishes to npm when release-please cuts a release.
+
+Release PRs are opened by `github-actions[bot]`. Without the `RELEASE_PLEASE_TOKEN` secret, GitHub creates their CI runs in an approval-required state, so a maintainer must click *Approve workflows to run* before `test` and `pr-title` report; title edits on such a PR create no run at all, so re-checking one means closing and reopening it. With the secret set (fine-grained PAT for this repository with Contents and Pull requests read/write, or a GitHub App token; a PAT expires after at most one year) the release PR behaves like any other and needs no click. Until the secret exists, releases keep working with the approval click.
+
 ## License
 
 MIT.

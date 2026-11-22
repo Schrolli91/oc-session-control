@@ -1,0 +1,83 @@
+name: Label
+
+# Applies the type label after a Checks run finishes. workflow_run executes the
+# workflow from the default branch with a write-capable token, which is what
+# lets the label reach fork PRs — plain pull_request only grants a read-only
+# token there — and what keeps the job alive after pull_request_target becomes
+# blocked by default in public repositories on 2026-12-02. The workflow only
+# starts once this file is on the default branch; until then PRs get their
+# checks but no automatic label.
+#
+# Safety rules: never check out or execute anything from the PR, pass PR data
+# only through env:, and talk to nothing but the API. workflow_run also means
+# a label edit re-runs the title check first, so a corrected title re-labels.
+
+on:
+  workflow_run:
+    workflows: ["Checks"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    # push runs to main have no pull request to label
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply type label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          # workflow_run.pull_requests is often empty for fork PRs, so resolve
+          # the PR through the API instead of trusting the event payload
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          pr="$(gh run view "$RUN_ID" --repo "$REPO" --json pullRequests --jq '.pullRequests[0].number // empty')"
+          if [[ -z "$pr" ]]; then
+            pr="$(gh pr list --repo "$REPO" --head "$HEAD_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          fi
+          if [[ -z "$pr" ]]; then
+            echo "::notice::No open pull request for '$HEAD_BRANCH', skipping label"
+            exit 0
+          fi
+
+          TITLE="$(gh pr view "$pr" --repo "$REPO" --json title --jq .title)"
+
+          type="${TITLE%%(*}"
+          type="${type%%!*}"
+          type="${type%%:*}"
+
+          case "$type" in
+            feat)   label="feature" ;;
+            fix)    label="bug" ;;
+            test)   label="tests" ;;
+            docs|refactor|ci|chore) label="$type" ;;
+            deps)   label="dependencies" ;;
+            *)
+              echo "::error::Unmapped type '$type'"
+              exit 1
+              ;;
+          esac
+
+          # comma delimiters keep the substitution entry-wise: plain
+          # "${all//ci/}" would also mangle 'dependencies' into 'dependenes'
+          all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
+          remove="${all//,$label,/,}"
+          remove="${remove#,}"
+          remove="${remove%,}"
+
+          add="$label"
+          breaking_re='^[a-z]+(\([^)]*\))?!:'
+          if [[ "$TITLE" =~ $breaking_re ]]; then
+            add="$add,breaking-change"
+            echo "Breaking change detected"
+          else
+            remove="${remove:+$remove,}breaking-change"
+          fi
+
+          gh pr edit "$pr" --repo "$REPO" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$pr as '$add'"
