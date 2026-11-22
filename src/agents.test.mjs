@@ -192,6 +192,7 @@ test("rejects negative context counters and preserves valid zero counters", () =
 test("uses complete plugin-owned accent maps for light and dark modes", () => {
   const expected = {
     dark: {
+      cost: "#58A6FF",
       agentStatus: {
         working: "#58A6FF",
         complete: "#3FB950",
@@ -209,6 +210,7 @@ test("uses complete plugin-owned accent maps for light and dark modes", () => {
       skills: { loaded: "#58A6FF", unloaded: "#8B949E" },
     },
     light: {
+      cost: "#0969DA",
       agentStatus: {
         working: "#0969DA",
         complete: "#1A7F37",
@@ -232,7 +234,7 @@ test("uses complete plugin-owned accent maps for light and dark modes", () => {
     for (const [area, palette] of Object.entries(expected[mode])) {
       assert.deepEqual(colors[area], palette)
     }
-    assert.ok([...Object.values(colors.text), ...Object.values(colors.agentStatus),
+    assert.ok([...Object.values(colors.text), colors.cost, ...Object.values(colors.agentStatus),
       ...Object.values(colors.contextFill), ...Object.values(colors.cacheTTL),
       ...Object.values(colors.skills), ...Object.values(colors.usage.input),
       ...Object.values(colors.usage.output)]
@@ -258,7 +260,7 @@ test("host hue and feedback changes cannot affect plugin accents", () => {
   for (const mode of ["dark", "light"]) {
     const colors = getThemeColors(hostTheme, mode)
     const withoutHostAccents = getThemeColors({}, mode)
-    for (const area of ["agentStatus", "usage", "contextFill", "cacheTTL", "skills"]) {
+    for (const area of ["agentStatus", "usage", "contextFill", "cacheTTL", "skills", "cost"]) {
       assert.deepEqual(colors[area], withoutHostAccents[area])
     }
   }
