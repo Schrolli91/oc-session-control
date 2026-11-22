@@ -30,7 +30,7 @@ The dashboard MUST show the agent family’s cache hit rate and the latest assis
 - **THEN** the divider shows a solid line without a truncated label
 
 ### Requirement: Estimate cache savings
-The dashboard MUST estimate cache savings by pricing each assistant call’s cache-read tokens with the prices of that call’s own model — using the model’s context price tier when the call’s context window exceeds that tier’s threshold — subtracting the cache-write premium (cache-write price minus input price) for the tokens that call wrote to cache, then labeling the indented gray estimate row “Saved (est.):”. A call’s contribution MUST be clamped at zero. When part of the family’s cache reads cannot be priced, the row MUST report that as `(partial)`; when no cache read can be priced, it MUST be marked unavailable.
+The dashboard MUST estimate cache savings by pricing each assistant call’s cache-read tokens with that call’s own model’s applicable prices — the context price tier when the call’s window exceeds it, minus the cache-write premium, clamped at zero — then label the indented gray estimate row “Saved (est.):”. When part of the family’s cache reads cannot be priced, the row MUST report that as `(partial)`; when no cache read can be priced, it MUST be marked unavailable.
 
 #### Scenario: Model switch keeps the estimate
 - **WHEN** a session’s assistant history contains calls on more than one model and every call’s model has an input and a cache-read price
