@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { buildSessionCostRows } from "./costs.mjs"
 import {
   aggregateUsage,
   buildUsageBreakdown,
@@ -301,28 +302,62 @@ test("prices each call under its own model when session history switches models"
   assert.ok(Math.abs(usage.saved.total - 1.26) < 1e-12)
 })
 
-test("marks only the compacted session as unpriced", () => {
-  const pricedCall = {
+test("prices a compacted session's retained calls instead of dropping the session", () => {
+  const models = [{ providerID: "provider", modelID: "model-a", cost: { input: 1, cache: { read: 0.1 } } }]
+  const session = { tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } }
+  const call = {
     info: {
       type: "assistant",
       model: { providerID: "provider", id: "model-a" },
       tokens: { input: 0, cache: { read: 1_000_000, write: 0 } },
     },
   }
+  const savedRow = (saved) => buildSessionCostRows(0, { total: 0, known: 1, missing: 0 }, 1, saved)[2].value
+
+  const compacted = aggregateUsage(["main"], () => session, () => [{ type: "compaction", status: "completed" }, call], models)
+  assert.equal(compacted.saved.known, 1)
+  assert.equal(compacted.saved.missing, 1)
+  assert.ok(Math.abs(compacted.saved.total - 0.9) < 1e-12)
+  assert.equal(savedRow(compacted.saved), "~$0.9000 (partial)")
+
+  const unpriceable = aggregateUsage(["main"], () => session, () => [{ type: "compaction", status: "completed" }], models)
+  assert.deepEqual(unpriceable.saved, { total: 0, known: 0, missing: 1 })
+  assert.equal(savedRow(unpriceable.saved), "unavailable")
+})
+
+test("keeps a session priced when one call reports no cache reads", () => {
+  const model = { providerID: "provider", id: "model" }
   const usage = aggregateUsage(
-    ["main", "child"],
-    (id) => ({
-      main: { tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } },
-      child: { tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } },
-    })[id],
-    (id) => id === "main"
-      ? [{ type: "compaction", status: "completed" }, pricedCall]
-      : [pricedCall],
-    [{ providerID: "provider", modelID: "model-a", cost: { input: 1, cache: { read: 0.1 } } }],
+    ["main"],
+    () => ({ tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } }),
+    () => [
+      { info: { type: "assistant", model, tokens: { input: 10, cache: { read: 400_000, write: 0 } } } },
+      { info: { type: "assistant", model, tokens: { input: 10 } } },
+      { info: { type: "assistant", model, tokens: { input: 10, cache: { read: 600_000, write: 0 } } } },
+    ],
+    [{ providerID: "provider", modelID: "model", cost: { input: 1, cache: { read: 0.1 } } }],
+  )
+  assert.equal(usage.saved.known, 1)
+  assert.equal(usage.saved.missing, 0)
+  assert.ok(Math.abs(usage.saved.total - 0.9) < 1e-12)
+})
+
+test("marks lifetime cache reads that no visible call explains as partial", () => {
+  const usage = aggregateUsage(
+    ["main"],
+    () => ({ tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 1_000_000, write: 0 } } }),
+    () => [{
+      info: {
+        type: "assistant",
+        model: { providerID: "provider", id: "model" },
+        tokens: { input: 0, cache: { read: 400_000, write: 0 } },
+      },
+    }],
+    [{ providerID: "provider", modelID: "model", cost: { input: 1, cache: { read: 0.1 } } }],
   )
   assert.equal(usage.saved.known, 1)
   assert.equal(usage.saved.missing, 1)
-  assert.ok(Math.abs(usage.saved.total - 0.9) < 1e-12)
+  assert.ok(Math.abs(usage.saved.total - 0.36) < 1e-12)
 })
 
 test("formats token totals with compact suffixes", () => {

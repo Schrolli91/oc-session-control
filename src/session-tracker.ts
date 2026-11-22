@@ -100,34 +100,48 @@ export function createSessionTracker(context, location) {
     return family
   }
 
-  const refreshSession = (id) => {
+  const refreshSession = (id, { messages = true } = {}) => {
     if (!id || disposed) return Promise.resolve()
-    if (refreshes.has(id)) return refreshes.get(id)
-    const pending = (async () => {
+    // The newest-page sync drops everything older, so only history-changing
+    // refreshes may run it; step events already append messages in place.
+    const refreshMessages = messages || (context.data.session.message.list(id) ?? []).length === 0
+    const pending = refreshes.get(id)
+    if (pending) {
+      // A history-changing request must not be swallowed by a lighter refresh that
+      // is already running, or compaction/revert would keep a stale transcript.
+      if (!refreshMessages || pending.messages) return pending.promise
+      return pending.promise.then(() => refreshSession(id, { messages: true }))
+    }
+    const work = (async () => {
       context.data.session.invalidate(id)
-      context.data.session.message.invalidate(id)
       context.data.session.permission.invalidate(id)
+      if (refreshMessages) context.data.session.message.invalidate(id)
       await Promise.all([
         context.data.session.sync(id),
-        context.data.session.message.sync(id),
+        refreshMessages ? context.data.session.message.sync(id) : Promise.resolve(),
         context.data.session.permission.sync(id),
       ])
+      // Walk the transcript pages the newest-page sync cannot see. `more` clears
+      // itself once the cursor is exhausted, so this runs once per trimming sync.
+      if (context.data.session.message.more(id) && !context.data.session.message.loading(id)) {
+        await context.data.session.message.loadMore(id, { all: true })
+      }
       const targetLocation = getSessionLocation(context.data.session.get(id), location)
       context.data.session.form.invalidate(id, targetLocation)
       await context.data.session.form.sync(id, targetLocation)
     })()
-    const refresh = pending.finally(() => {
-      if (refreshes.get(id) === refresh) refreshes.delete(id)
+    const refresh = work.finally(() => {
+      if (refreshes.get(id)?.promise === refresh) refreshes.delete(id)
     })
-    refreshes.set(id, refresh)
+    refreshes.set(id, { promise: refresh, messages: refreshMessages })
     return refresh
   }
 
-  const refreshEvent = (event) => {
+  const refreshEvent = (event, options = {}) => {
     const rootID = event.data?.parentID ?? event.data?.sessionID ?? event.data?.form?.sessionID
     if (!rootID || disposed) return
     const affected = familyEventSessionIDs([rootID], event)
-    void Promise.all(affected.map(refreshSession)).catch(() => {})
+    void Promise.all(affected.map((id) => refreshSession(id, options))).catch(() => {})
   }
   const trackExecution = (event, result) => {
     if (disposed) return
@@ -168,7 +182,7 @@ export function createSessionTracker(context, location) {
   }
 
   try {
-    subscribe("session.usage.updated", refreshEvent)
+    subscribe("session.usage.updated", (event) => refreshEvent(event, { messages: false }))
     subscribe("skill.updated", (event) => {
       if (disposed) return
       const targetLocation = event.location ?? location
@@ -180,7 +194,7 @@ export function createSessionTracker(context, location) {
       ]).catch(() => {})
     })
     subscribe("session.compaction.ended", refreshEvent)
-    subscribe("session.status", refreshEvent)
+    subscribe("session.status", (event) => refreshEvent(event, { messages: false }))
     subscribe("session.execution.started", (event) => trackExecution(event, "running"))
     subscribe("session.execution.succeeded", (event) => trackExecution(event, "success"))
     subscribe("session.execution.failed", (event) => trackExecution(event, "error"))

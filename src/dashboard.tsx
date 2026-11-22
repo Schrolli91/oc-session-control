@@ -156,7 +156,7 @@ export function Dashboard(props) {
     if (!id) return
     await context.data.session.sync(id)
     const ids = sessionIDsForFamily(id, sessionFamily(id))
-    await Promise.all(ids.map(refreshSession))
+    await Promise.all(ids.map((familyID) => refreshSession(familyID)))
   }
   createEffect(() => {
     const id = sessionID()
