@@ -1,0 +1,116 @@
+name: Release
+
+# One workflow for the whole release path:
+#
+#   push to main -> release-please opens/updates the release PR (package.json
+#   bump + CHANGELOG.md). Merging that PR makes release-please create the tag
+#   AND the GitHub Release in the same step, which sets release_created and
+#   starts the publish job.
+#
+#   npm publish therefore only ever runs for a release that release-please
+#   actually cut, and the publish job re-checks that the tag and the GitHub
+#   Release exist before it talks to npm. No npm release without a GitHub
+#   release.
+#
+# Staying in a single file is not just tidiness: npm Trusted Publishing
+# matches the OIDC claim against the workflow file that ran, and a reusable
+# workflow called from a second file makes that claim name the caller — the
+# token exchange is rejected and npm publishes with a placeholder token
+# (404). One file, no caller/callee, no mismatch.
+#
+# Re-run an existing release with: gh workflow run Release -f tag=<tag>
+#
+# Only feat/fix/deps/breaking commits open a release PR; chore/ci/docs/...
+# land in the changelog of the next one but do not trigger a release by
+# themselves. Force one with a `Release-As: X.Y.Z` footer in a commit body.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)publish, e.g. oc-session-control-v0.2.0"
+        required: true
+        type: string
+
+# serialize: two quick merges must not fight over the same release PR
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    # the dispatch path republishes a tag that already exists
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # the release PR is labelled via the issues API
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    # !cancelled(): release-please is skipped on dispatch, and a skipped need
+    # would otherwise skip this job as well.
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}
+    needs: release-please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm Trusted Publishing + provenance
+      id-token: write
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag }}
+    steps:
+      - name: Require tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" > /dev/null
+          gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json tagName > /dev/null
+          echo "Release ${TAG} exists."
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.4.0
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run check
+
+      - name: Look up the version on npm
+        id: npm
+        run: |
+          set -euo pipefail
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          echo "package=${name}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if npm view "${name}@${version}" version > /dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "${name}@${version} is already on npm, nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "${name}@${version} is not on npm yet."
+          fi
+
+      - name: npm publish
+        if: steps.npm.outputs.published == 'false'
+        run: npm publish --provenance --access public
