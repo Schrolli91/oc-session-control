@@ -25,5 +25,3 @@
 
 * **main:** release oc-session-control 0.2.0 ([#6](https://github.com/Schrolli91/oc-session-control/issues/6)) ([112af7f](https://github.com/Schrolli91/oc-session-control/commit/112af7f7f1a2eefe811fc54403c6c78a7d503840))
 * release 0.1.2 ([8a00232](https://github.com/Schrolli91/oc-session-control/commit/8a00232b384cea96f49d85c4b3866ea1649d4335))
-
-## Changelog
