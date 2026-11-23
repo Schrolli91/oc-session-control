@@ -1,28 +1,12 @@
 name: PR
 
-# The type list below is the repo-wide commit vocabulary: it decides the squash
-# commit on main, the labels, and (via release-please) the CHANGELOG sections.
-# If you add a type here, add it to changelog-sections in
-# release-please-config.json too, otherwise that type never shows up in
-# CHANGELOG.md. release-please itself opens its PR as
-# `chore(main): release X.Y.Z`, which must keep matching this pattern.
-
-# pull_request_target so PRs from forks are covered too (they only get a
-# read-only token on plain pull_request events). Safety rules for this file:
-# never check out or execute anything from the PR, pass the PR title only
-# through env:, and talk to nothing but the API. The workflow always runs
-# the version from main, so a PR cannot tamper with these jobs.
-
+# Label from the default-branch workflow so fork PRs need no unsafe checkout.
 on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
-
-concurrency:
-  group: pr-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   pr-title:
@@ -32,17 +16,16 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
+          # Keep accepted types aligned with the label map and release-please.
           pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
 
           if [[ "$TITLE" =~ $pattern ]]; then
-            echo "PR title is valid: $TITLE"
+            echo "PR title is valid"
             exit 0
           fi
 
           {
             echo "### PR title does not follow Conventional Commits"
-            echo
-            echo "Received: \`$TITLE\`"
             echo
             echo "Expected: \`<type>(<scope>)!: <description>\`"
             echo
@@ -55,22 +38,25 @@ jobs:
             echo "The PR title becomes the squash commit on main and feeds the changelog."
           } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
+          echo "::error::PR title is invalid; see the job summary for details."
           exit 1
 
   label:
     needs: pr-title
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - name: Apply type label
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           TITLE: ${{ github.event.pull_request.title }}
         run: |
+          pr="$PR_NUMBER"
+
           type="${TITLE%%(*}"
           type="${type%%!*}"
           type="${type%%:*}"
@@ -82,13 +68,12 @@ jobs:
             docs|refactor|ci|chore) label="$type" ;;
             deps)   label="dependencies" ;;
             *)
-              echo "::error::Unmapped type '$type'"
+              echo "::error::Unmapped PR title type; check the title and label mapping."
               exit 1
               ;;
           esac
 
-          # comma delimiters keep the substitution entry-wise: plain
-          # "${all//ci/}" would also mangle 'dependencies' into 'dependenes'
+          # Delimiters prevent matching `ci` inside `dependencies`.
           all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
           remove="${all//,$label,/,}"
           remove="${remove#,}"
@@ -103,5 +88,5 @@ jobs:
             remove="${remove:+$remove,}breaking-change"
           fi
 
-          gh pr edit "$PR" --repo "$REPO" --remove-label "$remove" --add-label "$add"
-          echo "Labelled PR #$PR as '$add'"
+          gh pr edit "$pr" --repo "$REPO" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$pr as '$add'"

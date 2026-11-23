@@ -1,31 +1,11 @@
 name: Release
 
-# Everything that turns commits on main into a published version, in one file:
-#
-#   push to main -> release-please opens/updates the release PR (package.json
-#   bump + CHANGELOG.md). Merging that PR makes release-please create the tag
-#   AND the GitHub Release in the same step, which sets release_created and
-#   starts the publish job.
-#
-#   So npm publish only ever runs for a release that release-please actually
-#   cut — tag and GitHub release exist by construction, there is no other way
-#   into the publish job.
-#
-# One file, not a caller/called pair, matters for npm Trusted Publishing:
-# npm matches the OIDC claim against the workflow file that ran, so a
-# reusable workflow called from another file makes that claim name the
-# caller — the token exchange is rejected and npm publishes with a
-# placeholder token (404).
-#
-# Only feat/fix/deps/breaking commits open a release PR; chore/ci/docs/...
-# land in the changelog of the next one but do not trigger a release by
-# themselves. Force one with a `Release-As: X.Y.Z` footer in a commit body.
-
+# Keep publishing here: npm Trusted Publishing binds OIDC to this workflow path.
 on:
   push:
     branches: [main]
 
-# serialize: two quick merges must not fight over the same release PR
+# Serialize updates to the single release PR.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -35,15 +15,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      # the release PR is labelled via the issues API
+      # release-please labels its PR via the Issues API
       issues: write
       pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
     steps:
+      - name: Require release token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_PLEASE_TOKEN" ]]; then
+            echo "::error::RELEASE_PLEASE_TOKEN must be configured for release-please."
+            exit 1
+          fi
       - uses: googleapis/release-please-action@v4
         id: release
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -53,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm Trusted Publishing + provenance
+      # npm Trusted Publishing requires this workflow's OIDC identity.
       id-token: write
     steps:
       - uses: actions/checkout@v4

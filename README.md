@@ -71,6 +71,16 @@ npm run check
 
 `npm run build` compiles `src/` into `dist/`. `npm run check` type-checks the source.
 
+### CI and releases
+
+Three workflows under `.github/workflows/`:
+
+- `Tests` (`test.yml`) runs the build, unit tests, type-check, and package checks when a PR opens, reopens, or receives commits, and on pushes to `main` after merges. Title-only edits do not rerun tests.
+- `PR` (`pr.yml`) validates conventional-commit titles and applies type labels directly on `pull_request_target` events (`opened`, `edited`, `reopened`, `synchronize`). A repository Actions policy allows this event only for `pr.yml`; the workflow never checks out PR code and grants write permission only to the label job.
+- `Release` (`release.yml`) runs release-please on pushes to `main` and publishes to npm when release-please cuts a release.
+
+Release PRs are opened by `github-actions[bot]`. The repository secret `RELEASE_PLEASE_TOKEN` is required so their CI runs start like other PRs without manual approval. The release workflow fails immediately if the secret is missing; an expired or revoked token fails authentication. The fine-grained PAT needs Contents and Pull requests read/write; renew it before it expires (PATs expire after at most one year). `pr.yml` uses the base-branch workflow definition, so its title check cannot be changed by the PR being checked.
+
 ## License
 
 MIT.
