@@ -121,13 +121,17 @@ export function createSessionTracker(context, location) {
         refreshMessages ? context.data.session.message.sync(id) : Promise.resolve(),
         context.data.session.permission.sync(id),
       ])
+      if (disposed) return
       // Walk the transcript pages the newest-page sync cannot see. `more` clears
       // itself once the cursor is exhausted, so this runs once per trimming sync.
       if (refreshMessages && context.data.session.message.more(id) && !context.data.session.message.loading(id)) {
         await context.data.session.message.loadMore(id, { all: true })
+        if (disposed) return
       }
+      if (disposed) return
       const targetLocation = getSessionLocation(context.data.session.get(id), location)
       context.data.session.form.invalidate(id, targetLocation)
+      if (disposed) return
       await context.data.session.form.sync(id, targetLocation)
     })()
     const refresh = work.finally(() => {
