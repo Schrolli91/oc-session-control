@@ -164,6 +164,7 @@ export function AgentEntry(props) {
         <text
           fg={colors().text.muted}
           wrapMode="none"
+          attributes={row().modelRef ? TextAttributes.UNDERLINE : TextAttributes.NONE}
           onMouseDown={(event) => event.stopPropagation()}
           onMouseUp={(event) => {
             event.stopPropagation()
