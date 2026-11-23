@@ -65,7 +65,7 @@ The dashboard MUST show the main session and known subagents in a compact list. 
 - **THEN** the main entry shows the main session's own cost, which is lower than the family total shown in the “Session usage” heading whenever subagents have spent anything
 
 ### Requirement: Show cache hit rates and the latest call
-The dashboard MUST show the agent family's cumulative cache hit rate in the “Cache” heading and show a separate hit rate and latest-call statistics for the main session and each known subagent. The family rate MUST be calculated from the family's summed counters, not as an average of agent rates. The “Cache” section MUST remain clickable, expanded by default, and indent the whole agent breakdown once under the “Cache” heading; an agent's “Last call” and “TTL” rows MUST align with its name and rate. A subtle divider labeled “Mainagent” MUST continue to separate Cache from the main entry.
+The dashboard MUST show the agent family's cumulative cache hit rate in the “Cache” heading and show a separate hit rate and latest-call statistics for the main session and each known subagent. The family rate MUST be calculated from the family's summed counters, not as an average of agent rates. The “Cache” section MUST remain clickable, expanded by default, and indent the whole agent breakdown once under the “Cache” heading; an agent's “Last call” and “TTL” rows MUST align with its name and rate. A subtle divider labeled “◆ Mainagent” MUST continue to separate Cache from the main entry.
 
 #### Scenario: Show agent-family cache rates
 - **WHEN** cumulative token counters and at least one assistant call are available
@@ -105,7 +105,7 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 
 #### Scenario: Visually separate Cache from the main agent
 - **WHEN** the Cache section and main entry are displayed one after the other
-- **THEN** a blank line and a subtle solid horizontal divider labeled “Mainagent” separate the sections
+- **THEN** a blank line and a subtle solid horizontal divider labeled “◆ Mainagent” separate the sections
 
 #### Scenario: Show the divider in a narrow sidebar
 - **WHEN** the sidebar is narrower than a divider label and its surrounding spaces
