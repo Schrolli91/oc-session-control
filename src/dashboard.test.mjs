@@ -146,7 +146,7 @@ test("renders separate cache rates and last calls for the main agent and subagen
     assert.match(frame, /◆ Mainagent:/)
     assert.match(frame, /↳ Subagents:/)
     assert.match(frame, /◆ Mainagent/)
-    assert.match(frame, /↳ explore[^\n]*… +50\.00%/)
+    assert.match(frame, /↳ explore[^…\n]*… +50\.00%/)
     assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Last call:\s+↑75\.0%\s+75\.00%/)
     assert.match(frame, /TTL:\s+●\s+1m 0?s/)
