@@ -21,11 +21,18 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
     steps:
+      - name: Require release token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_PLEASE_TOKEN" ]]; then
+            echo "::error::RELEASE_PLEASE_TOKEN must be configured for release-please."
+            exit 1
+          fi
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          # A PAT lets release-please PRs trigger workflows; the fallback keeps releases working if unset.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

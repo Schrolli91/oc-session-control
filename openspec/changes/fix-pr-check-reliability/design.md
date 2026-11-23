@@ -31,14 +31,16 @@ GitHub will block `pull_request_target` by default in public repositories starti
 
 4. **Allow the privileged event only for `pr.yml`.** Create an active repository Actions policy scoped to `.github/workflows/pr.yml` with only `pull_request_target` in its allowed events. This satisfies GitHub's Dec 2 default policy without allowing the event for other workflows.
 
-5. **Keep release-please on its own token.** `release.yml` passes `RELEASE_PLEASE_TOKEN || GITHUB_TOKEN`. The configured token causes release PR events to run normally; the fallback preserves release creation but may restore the approval requirement if the secret expires or is removed.
+5. **Require the release token and fail fast.** Check that `RELEASE_PLEASE_TOKEN` is non-empty before invoking release-please, then pass only that secret as its token. Do not fall back to `GITHUB_TOKEN`: it can create the release PR while suppressing the PR-triggered required workflows. An expired or revoked token causes the action to fail authentication.
 
 ## Risks / Trade-offs
 
 - `[pull_request_target]` is privileged → scope the event policy to `pr.yml`, grant write access only to the label job, and never check out or execute PR code.
+- `[the PR title is untrusted]` → pass it through environment variables and keep it out of workflow-command output; include it only in the step summary.
 - `[the event policy is removed or misconfigured]` → GitHub will block PR metadata jobs after Dec 2; verify the active policy targets only `.github/workflows/pr.yml` and allows `pull_request_target`.
 - `[tests run on documentation-only PRs]` → accepted; keeping a required check simple and reliable is preferred to conditional path filtering.
-- `[RELEASE_PLEASE_TOKEN` expires]` → release-please falls back to `GITHUB_TOKEN` and manual workflow approval may return; renew the PAT before expiry.
+- `[RELEASE_PLEASE_TOKEN` is missing]` → the preflight step fails before release-please can create a PR without checks.
+- `[RELEASE_PLEASE_TOKEN` expires or is revoked]` → the non-empty secret is still selected, so authentication fails; renew the PAT before expiry.
 
 ## Migration Plan
 
