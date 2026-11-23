@@ -4,6 +4,7 @@ export function latestAssistantUsage(messages) {
   if (!Array.isArray(messages)) return undefined
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const info = messages[index]?.info ?? messages[index]
+    if (info?.type === "compaction" && info.status === "completed") return undefined
     if (info?.type === "assistant" && info.tokens) return info
   }
   return undefined

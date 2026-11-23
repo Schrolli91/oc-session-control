@@ -28,6 +28,26 @@ test("uses the latest assistant usage and ignores non-assistant messages", () =>
   assert.equal(latestAssistantUsage(messages), messages[2].info)
 })
 
+test("does not reuse assistant usage from before completed compaction", () => {
+  const messages = [
+    { type: "assistant", tokens: { input: 90 } },
+    { info: { type: "compaction", status: "completed", tokens: { input: 95 } } },
+  ]
+
+  assert.equal(latestAssistantUsage(messages), undefined)
+})
+
+test("uses assistant usage recorded after completed compaction", () => {
+  const latest = { type: "assistant", tokens: { input: 12 } }
+  const messages = [
+    { type: "assistant", tokens: { input: 90 } },
+    { type: "compaction", status: "completed", tokens: { input: 95 } },
+    latest,
+  ]
+
+  assert.equal(latestAssistantUsage(messages), latest)
+})
+
 test("aggregates token usage and estimated cache savings across the session family", () => {
   const sessions = {
     main: {

@@ -162,6 +162,84 @@ test("reports unavailable context when session usage has no valid model limit", 
   assert.equal(row.contextPercentage, undefined)
 })
 
+test("drops pre-compaction context until new assistant usage arrives", () => {
+  const messages = {
+    main: [
+      {
+        info: {
+          type: "assistant",
+          model: { providerID: "provider", id: "main-model" },
+          tokens: { input: 90, cache: { read: 0, write: 0 } },
+        },
+      },
+      { info: { type: "compaction", status: "completed", tokens: { input: 95 } } },
+    ],
+    child: [],
+    other: [],
+  }
+  const options = {
+    sessionIDs: ["main", "child", "other"],
+    getSession: () => ({}),
+    getMessages: (id) => messages[id],
+    getModels: (id) => [{
+      providerID: "provider",
+      modelID: `${id}-model`,
+      limit: { context: 100 },
+    }],
+  }
+
+  const compacted = rowsFor(options)
+  assert.equal(compacted[0].context, "unavailable")
+  assert.equal(compacted[0].contextPercentage, undefined)
+
+  messages.main.push({
+    info: {
+      type: "assistant",
+      model: { providerID: "provider", id: "main-model" },
+      tokens: { input: 20, cache: { read: 0, write: 0 } },
+    },
+  })
+  const refreshed = rowsFor(options)
+  assert.equal(refreshed[0].context, "20 / 100 tok")
+  assert.equal(refreshed[0].contextPercentage, 20)
+  assert.equal(buildDashboardViewModel(refreshed).mainRow.contextPercentage, 20)
+})
+
+test("subagent compaction leaves main and unrelated subagent context current", () => {
+  const rows = rowsFor({
+    sessionIDs: ["main", "child", "other"],
+    getSession: () => ({}),
+    getMessages: (id) => id === "child"
+      ? [
+          {
+            info: {
+              type: "assistant",
+              model: { providerID: "provider", id: "child-model" },
+              tokens: { input: 80, cache: { read: 0, write: 0 } },
+            },
+          },
+          { info: { type: "compaction", status: "completed", tokens: { input: 90 } } },
+        ]
+      : [{
+          info: {
+            type: "assistant",
+            model: { providerID: "provider", id: `${id}-model` },
+            tokens: { input: id === "main" ? 25 : 35, cache: { read: 0, write: 0 } },
+          },
+        }],
+    getModels: (id) => [{
+      providerID: "provider",
+      modelID: `${id}-model`,
+      limit: { context: 100 },
+    }],
+  })
+  const viewModel = buildDashboardViewModel(rows)
+
+  assert.equal(viewModel.mainRow.contextPercentage, 25)
+  assert.equal(viewModel.rowBySessionID.get("child").context, "unavailable")
+  assert.equal(viewModel.rowBySessionID.get("other").contextPercentage, 35)
+})
+
 test("counts subagents and summarizes loaded skill tokens", () => {
   const rows = rowsFor()
   const skills = [
