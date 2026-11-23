@@ -80,6 +80,57 @@ test("deduplicates in-flight refreshes for one session", async () => {
   tracker.dispose()
 })
 
+test("refreshes root details without syncing its already-refreshed session record", async () => {
+  const { context, calls } = makeContext()
+  context.data.session.message.list = () => [{}]
+  const tracker = createSessionTracker(context, context.location)
+
+  await tracker.refreshSession("session-1", { session: false })
+
+  assert.equal(calls.get("session.invalidate"), undefined)
+  assert.equal(calls.get("session.sync"), undefined)
+  assert.equal(calls.get("message.invalidate"), 1)
+  assert.equal(calls.get("message.sync"), 1)
+  assert.equal(calls.get("permission.invalidate"), 1)
+  assert.equal(calls.get("permission.sync"), 1)
+  assert.equal(calls.get("form.invalidate"), 1)
+  assert.equal(calls.get("form.sync"), 1)
+
+  await tracker.refreshSession("session-1")
+  assert.equal(calls.get("session.invalidate"), 1)
+  assert.equal(calls.get("session.sync"), 1)
+  tracker.dispose()
+})
+
+test("chains a full session refresh behind a detail-only refresh", async () => {
+  const { context, calls } = makeContext()
+  context.data.session.message.list = () => [{}]
+  let releaseDetails
+  let markDetailsStarted
+  let formSyncs = 0
+  const detailsStarted = new Promise((resolve) => { markDetailsStarted = resolve })
+  context.data.session.form.sync = () => {
+    formSyncs++
+    if (formSyncs > 1) return Promise.resolve()
+    return new Promise((resolve) => {
+      releaseDetails = resolve
+      markDetailsStarted()
+    })
+  }
+  const tracker = createSessionTracker(context, context.location)
+
+  const details = tracker.refreshSession("session-1", { session: false })
+  await detailsStarted
+  const full = tracker.refreshSession("session-1")
+  assert.equal(calls.get("session.sync"), undefined)
+  releaseDetails()
+  await Promise.all([details, full])
+
+  assert.equal(calls.get("session.invalidate"), 1)
+  assert.equal(calls.get("session.sync"), 1)
+  tracker.dispose()
+})
+
 test("backfills the transcript pages the newest-page sync cannot see", async () => {
   const { context } = makeContext()
   let remaining = true

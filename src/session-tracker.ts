@@ -117,7 +117,7 @@ export function createSessionTracker(context, location) {
     return family
   }
 
-  const refreshSession = (id, { messages = true } = {}) => {
+  const refreshSession = (id, { messages = true, session = true } = {}) => {
     if (!id || disposed) return Promise.resolve()
     // The newest-page sync drops everything older, so only history-changing
     // refreshes may run it; step events already append messages in place.
@@ -126,15 +126,16 @@ export function createSessionTracker(context, location) {
     if (pending) {
       // A history-changing request must not be swallowed by a lighter refresh that
       // is already running, or compaction/revert would keep a stale transcript.
-      if (!refreshMessages || pending.messages) return pending.promise
-      return pending.promise.catch(() => {}).then(() => refreshSession(id, { messages: true }))
+      // A full session refresh must not be swallowed by a detail-only refresh.
+      if ((!refreshMessages || pending.messages) && (!session || pending.session)) return pending.promise
+      return pending.promise.catch(() => {}).then(() => refreshSession(id, { messages: refreshMessages, session }))
     }
     const work = (async () => {
-      context.data.session.invalidate(id)
+      if (session) context.data.session.invalidate(id)
       context.data.session.permission.invalidate(id)
       if (refreshMessages) context.data.session.message.invalidate(id)
       await Promise.all([
-        context.data.session.sync(id),
+        session ? context.data.session.sync(id) : Promise.resolve(),
         refreshMessages ? context.data.session.message.sync(id) : Promise.resolve(),
         context.data.session.permission.sync(id),
       ])
@@ -159,7 +160,7 @@ export function createSessionTracker(context, location) {
     const refresh = work.finally(() => {
       if (refreshes.get(id)?.promise === refresh) refreshes.delete(id)
     })
-    refreshes.set(id, { promise: refresh, messages: refreshMessages })
+    refreshes.set(id, { promise: refresh, messages: refreshMessages, session })
     return refresh
   }
 
