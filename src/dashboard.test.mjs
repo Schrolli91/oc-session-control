@@ -18,7 +18,7 @@ const models = [{
   cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
 }]
 
-const makeContext = (session, messages, subagents = []) => {
+const makeContext = (session, messages, subagents = [], actions = {}) => {
   const sessions = new Map([["main", session], ...subagents.map(({ session }) => [session.id, session])])
   const messagesBySession = new Map([["main", messages], ...subagents.map(({ session, messages }) => [session.id, messages])])
   return {
@@ -39,7 +39,10 @@ const makeContext = (session, messages, subagents = []) => {
         provider: { list: () => [], sync: async () => {} },
       },
     },
-    ui: { router: { navigate: () => {} }, dialog: { alert: async () => {} } },
+    ui: {
+      router: { navigate: actions.navigate ?? (() => {}) },
+      dialog: { alert: actions.alert ?? (async () => {}) },
+    },
   }
 }
 
@@ -61,7 +64,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}) => {
+const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}, actions = {}) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -71,7 +74,7 @@ const renderDashboard = async (session, messages, t, subagents = [], updateCheck
   }
   try {
     const setup = await testRender(() => Dashboard({
-      context: makeContext(session, messages, subagents),
+      context: makeContext(session, messages, subagents, actions),
       updateCheck,
       openReleases,
       location,
@@ -95,6 +98,29 @@ const modelNameSpans = (setup, name) => setup.captureSpans().lines
   .filter((line) => line.spans.some((span) => span.text.includes("Model:")))
   .flatMap((line) => line.spans)
   .filter((span) => span.text.includes(name))
+
+test("click handlers ignore drags and non-left clicks", async (t) => {
+  let clickOnRelease
+  try {
+    ({ clickOnRelease } = await import("../dist/dashboard-components.js"))
+  } catch {
+    t.skip("dist/ fehlt — zuerst `npm run build` ausführen")
+    return
+  }
+  let clicks = 0
+  const handlers = clickOnRelease(() => clicks++)
+  const event = (button) => ({ button, stopPropagation() {} })
+
+  handlers.onMouseDown(event(0))
+  handlers.onMouseUp(event(0))
+  handlers.onMouseDown(event(0))
+  handlers.onMouseDrag()
+  handlers.onMouseUp(event(0))
+  handlers.onMouseDown(event(2))
+  handlers.onMouseUp(event(2))
+
+  assert.equal(clicks, 1)
+})
 
 test("renders the session usage, totals, and cache sections", async (t) => {
   const setup = await renderDashboard(healthySession, [assistantMessage], t)
@@ -154,6 +180,8 @@ test("renders without waiting for the update check and shows the notice when it 
     assert.deepEqual(spans.find((span) => span.text.includes("1.0.0")).fg.toInts().slice(0, 3), [255, 255, 255])
     assert.deepEqual(spans.find((span) => span.text.includes("→")).fg.toInts().slice(0, 3), [139, 148, 158])
     assert.deepEqual(spans.find((span) => span.text.includes("1.0.1")).fg.toInts().slice(0, 3), [255, 255, 255])
+    await setup.mockMouse.drag(2, 0, 10, 0)
+    assert.equal(releasePageOpened, false)
     await setup.mockMouse.click(2, 0)
     assert.equal(releasePageOpened, true)
   } finally {
@@ -203,6 +231,47 @@ test("renders separate cache rates and last calls for the main agent and subagen
     const modelSpans = modelNameSpans(setup, "Claude Sonnet 4.5")
     assert.equal(modelSpans.length, 2)
     assert.ok(modelSpans.every((span) => span.attributes & TextAttributes.UNDERLINE))
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("subagent navigation requires a completed left click", async (t) => {
+  const navigations = []
+  const modelDialogs = []
+  const child = {
+    session: { ...healthySession, id: "child", title: "child-nav-target", cost: 0 },
+    messages: [],
+  }
+  const setup = await renderDashboard(healthySession, [assistantMessage], t, [child], Promise.resolve(null), () => {}, {
+    navigate: (route) => navigations.push(route),
+    alert: (dialog) => modelDialogs.push(dialog),
+  })
+  if (!setup) return
+  try {
+    const lines = setup.captureCharFrame().split("\n")
+    const agentY = lines.findIndex((line) => line.includes("child-nav-target") && line.includes("$0.0000"))
+    assert.notEqual(agentY, -1)
+
+    await setup.mockMouse.click(3, agentY)
+    assert.deepEqual(navigations, [{ type: "session", sessionID: "child" }])
+
+    navigations.length = 0
+    await setup.mockMouse.drag(3, agentY, 7, agentY)
+    await setup.mockMouse.pressDown(3, agentY)
+    await setup.mockMouse.moveTo(59, 59)
+    await setup.mockMouse.release(59, 59)
+    await setup.mockMouse.click(3, agentY, 2)
+    assert.deepEqual(navigations, [])
+
+    const modelY = lines.findIndex((line, index) => index > agentY && line.includes("Model:"))
+    assert.notEqual(modelY, -1)
+    const modelX = lines[modelY].indexOf("Claude Sonnet 4.5")
+    await setup.mockMouse.drag(modelX, modelY, modelX + 4, modelY)
+    assert.equal(modelDialogs.length, 0)
+    await setup.mockMouse.click(modelX, modelY)
+    assert.deepEqual(navigations, [])
+    assert.equal(modelDialogs.length, 1)
   } finally {
     await setup.dispose()
   }
