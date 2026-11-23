@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/Schrolli91/oc-session-control/compare/v0.3.0...v0.4.0) (2026-11-23)
+
+
+### Features
+
+* **dashboard:** show per-agent cache stats ([#24](https://github.com/Schrolli91/oc-session-control/issues/24)) ([8b4c15b](https://github.com/Schrolli91/oc-session-control/commit/8b4c15b116a5534a2bbca8c21542da3070830452))
+
+
+### CI
+
+* run PR checks and metadata independently ([#23](https://github.com/Schrolli91/oc-session-control/issues/23)) ([1a2edbc](https://github.com/Schrolli91/oc-session-control/commit/1a2edbcd2b88e80f888b4172cdc26162f00009d0))
+
 ## [0.3.0](https://github.com/Schrolli91/oc-session-control/compare/v0.2.0...v0.3.0) (2026-11-22)
 
 
