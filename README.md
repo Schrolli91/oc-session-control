@@ -75,7 +75,7 @@ npm run check
 
 Three workflows under `.github/workflows/`:
 
-- `Tests` (`test.yml`) runs on PRs and pushes to `main`. It builds, tests, type-checks, and packs only when code/build paths change (`src/`, `scripts/`, the plugin shim, package manifests, `tsconfig.json`, or `test.yml`). The required `test` check still succeeds when no matching paths change.
+- `Tests` (`test.yml`) runs the build, unit tests, type-check, and package checks when a PR opens, reopens, or receives commits, and on pushes to `main` after merges. Title-only edits do not rerun tests.
 - `PR` (`pr.yml`) validates conventional-commit titles and applies type labels directly on `pull_request_target` events (`opened`, `edited`, `reopened`, `synchronize`). A repository Actions policy allows this event only for `pr.yml`; the workflow never checks out PR code and grants write permission only to the label job.
 - `Release` (`release.yml`) runs release-please on pushes to `main` and publishes to npm when release-please cuts a release.
 
