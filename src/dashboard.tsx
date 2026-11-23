@@ -1,3 +1,4 @@
+import stringWidth from "string-width"
 import { createEffect, createMemo, createSignal, For, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import {
@@ -338,7 +339,7 @@ export function Dashboard(props) {
                             fg={colors().text.base}
                             wrapMode="none"
                           >
-                            {truncateAgentTitle(label(), cacheRowWidth() - rate().length - 2)}
+                            {truncateAgentTitle(label(), cacheRowWidth() - stringWidth(rate()) - 2)}
                           </text>
                           <text wrapMode="none" flexShrink={0}> </text>
                           <text fg={colors().text.muted} flexShrink={0} wrapMode="none">

@@ -1,7 +1,10 @@
+import stringWidth from "string-width"
 import { formatCost } from "./costs.mjs"
 import { findModel } from "./models.mjs"
 import { formatTokenCount, formatTokenTotal } from "./usage.mjs"
 export { contextFillColor, getThemeColors } from "./theme.mjs"
+
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
 
 export function buildAgentRows(sessionIDs, getSession, getCost) {
   const uniqueIDs = [...new Set(sessionIDs.filter(Boolean))]
@@ -30,11 +33,20 @@ export function sortSubagentSessionIDs(rows) {
 
 export function truncateAgentTitle(title, width) {
   if (typeof title !== "string" || !Number.isFinite(width) || width < 1) return ""
-  const characters = Array.from(title)
   const limit = Math.floor(width)
-  if (characters.length <= limit) return title
-  if (limit === 1) return "…"
-  return `${characters.slice(0, limit - 1).join("")}…`
+  if (stringWidth(title) <= limit) return title
+
+  const ellipsis = "…"
+  const titleWidth = limit - stringWidth(ellipsis)
+  let result = ""
+  let resultWidth = 0
+  for (const { segment } of graphemes.segment(title)) {
+    const segmentWidth = stringWidth(segment)
+    if (resultWidth + segmentWidth > titleWidth) break
+    result += segment
+    resultWidth += segmentWidth
+  }
+  return `${result}${ellipsis}`
 }
 
 export function familyEventSessionIDs(familyIDs, event) {
