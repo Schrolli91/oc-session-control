@@ -38,7 +38,7 @@ const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 const locationKey = (value) => JSON.stringify([value.directory, value.workspaceID])
 
 export function Dashboard(props) {
-  const { context, location, sessionFamily, executingSessionIDs, executionResults, refreshSession, insertSkill } = props
+  const { context, location, sessionFamily, executingSessionIDs, executionResults, refreshSession } = props
   const sessionID = () => props.sessionID
   const sessionLocation = (id) => getSessionLocation(context.data.session.get(id), location)
   const colors = createMemo(() => getThemeColors(context.theme, context.themeMode))
@@ -369,13 +369,6 @@ export function Dashboard(props) {
                 <box
                   width="100%"
                   flexDirection="row"
-                  onMouseDown={(event) => {
-                    event.stopPropagation()
-                  }}
-                  onMouseUp={(event) => {
-                    event.stopPropagation()
-                    if (event.button === 0) insertSkill(skill, sessionID(), skillLocation())
-                  }}
                 >
                   <box width={2} flexShrink={0}>
                     <text fg={loadedSkillIDs().has(skill.id) ? colors().skills.loaded : colors().skills.unloaded}>

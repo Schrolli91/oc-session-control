@@ -30,12 +30,12 @@ The sidebar updates with the current session and has these sections:
 - Session Total: combined input, cache reads and writes, output, and reasoning tokens, with bars per group. It is a token count, not context-window usage.
 - Cache: hit rate, change since the last call, and TTL status.
 - Mainagent: status spinner, model, context percentage and bar, and cost. Click the model name to open model details.
-- Skills: loaded and unloaded skills with token estimates. Click a skill to insert its `@skill` reference into a focused prompt; the prompt is not sent.
+- Skills: loaded and unloaded skills with token estimates. Skill rows are informational; clicking one does nothing. To invoke a skill, enter its exact `@<skill-id>` reference in the prompt.
 - Subagents (n): one row per subagent with model, context, and loaded skills. Click a row to open that session.
 
 Click a section heading to collapse or expand it. The dashboard is mouse-only: it adds no keyboard bindings and leaves prompt keyboard behavior untouched.
 
-Skill insertion only works when an OpenCode prompt editor is already focused; otherwise the click does nothing. OpenCode 2.3.2 has no supported prompt-insertion or targeted-picker API for this path, so the internal picker and frame-gate flow is unsupported and unverified.
+Skill rows do not insert text or open a picker. OpenCode 2.3.2 exposes no supported TUI prompt-insertion or targeted-picker API for this path; enter the skill's exact, case-sensitive ID as `@<skill-id>` in the prompt to invoke it manually.
 
 The plugin reads data through OpenCode host APIs and makes no network requests of its own.
 

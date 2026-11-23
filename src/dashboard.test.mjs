@@ -17,7 +17,7 @@ const models = [{
   cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
 }]
 
-const makeContext = (session, messages, subagents = []) => {
+const makeContext = (session, messages, subagents = [], skills = []) => {
   const sessions = new Map([["main", session], ...subagents.map(({ session }) => [session.id, session])])
   const messagesBySession = new Map([["main", messages], ...subagents.map(({ session, messages }) => [session.id, messages])])
   return {
@@ -33,7 +33,7 @@ const makeContext = (session, messages, subagents = []) => {
       },
       location: {
         agent: { list: () => [], sync: async () => {} },
-        skill: { list: () => [], sync: async () => {} },
+        skill: { list: () => skills, sync: async () => {} },
         model: { list: (target) => (target === location ? models : []), sync: async () => {} },
         provider: { list: () => [], sync: async () => {} },
       },
@@ -60,7 +60,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t, subagents = []) => {
+const renderDashboard = async (session, messages, t, subagents = [], skills = [], insertSkill = () => {}) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -70,13 +70,13 @@ const renderDashboard = async (session, messages, t, subagents = []) => {
   }
   try {
     const setup = await testRender(() => Dashboard({
-      context: makeContext(session, messages, subagents),
+      context: makeContext(session, messages, subagents, skills),
       location,
       sessionFamily: () => subagents.map(({ session: child }) => child.id),
       executingSessionIDs: () => new Set(),
       executionResults: () => new Map(),
       refreshSession: async () => {},
-      insertSkill: () => {},
+      insertSkill,
       sessionID: "main",
     }), { width: 60, height: 60 })
     await setup.renderOnce()
@@ -106,6 +106,53 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("clicking an informational skill row does not insert it", async (t) => {
+  const skill = { id: "review", name: "Review skill", description: "Review changes", content: "12345678" }
+  const secondSkill = { id: "cleanup", name: "Cleanup skill", description: "Clean up", content: "abcdefghijkl" }
+  let prompt = ""
+  let insertCalls = 0
+  const setup = await renderDashboard(
+    healthySession,
+    [
+      assistantMessage,
+      { type: "skill", skill: skill.id },
+      { type: "skill", skill: secondSkill.id },
+    ],
+    t,
+    [],
+    [secondSkill, skill],
+    () => {
+      insertCalls += 1
+      prompt += `@${skill.id}`
+    },
+  )
+  if (!setup) return
+  try {
+    let frame = setup.captureCharFrame()
+    assert.match(frame, /Skills \(2\/2\)/)
+    const skillRows = () => setup.captureCharFrame().split("\n").filter((line) =>
+      line.includes("●") && line.includes(" tok"),
+    )
+    assert.equal(skillRows().length, 2)
+    assert.match(skillRows()[0], /~2 tok/)
+    assert.match(skillRows()[1], /~3 tok/)
+    const skillRow = frame.split("\n").findIndex((line) => line.includes("●") && line.includes("~2 tok"))
+    assert.notEqual(skillRow, -1)
+
+    await setup.mockMouse.click(3, skillRow)
+    await setup.flush()
+
+    frame = setup.captureCharFrame()
+    assert.equal(insertCalls, 0)
+    assert.equal(prompt, "")
+    assert.match(frame, /Skills \(2\/2\)/)
+    assert.match(skillRows()[0], /~2 tok/)
+    assert.match(skillRows()[1], /~3 tok/)
   } finally {
     await setup.dispose()
   }
