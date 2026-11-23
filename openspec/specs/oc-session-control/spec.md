@@ -547,6 +547,17 @@ The dashboard MUST always show the “Session Overview” divider above “Sessi
 - **WHEN** the dashboard is rendered and no update notice is shown
 - **THEN** the “Session Overview” divider remains visible above “Session usage”
 
+### Requirement: Stop pending session refresh work after disposal
+Disposal MUST prevent pending refresh work from starting additional host sync, invalidation, or form operations. Operations already started may finish, and their promises MUST settle without unhandled rejections.
+
+#### Scenario: Dispose while a session sync is pending
+- **WHEN** a refresh is waiting for a session, message, or permission sync and the tracker is disposed
+- **THEN** after the pending sync settles, the refresh starts no further sync, invalidation, transcript loading, or form operation
+
+#### Scenario: Pending refresh promises settle after disposal
+- **WHEN** the tracker is disposed while refresh operations are pending
+- **THEN** those refresh promises settle safely and disposal remains idempotent with listener cleanup preserved
+
 ### Requirement: Activate dashboard controls only on completed clicks
 Interactive dashboard controls MUST run only after an uninterrupted left-button press and release on the same control. Pointer movement that starts a drag and non-left mouse buttons MUST NOT run the action. Nested controls MUST NOT also trigger their parent row's action.
 
