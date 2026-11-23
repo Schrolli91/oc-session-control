@@ -77,7 +77,7 @@ const renderDashboard = async (session, messages, t, subagents = []) => {
       executionResults: () => new Map(),
       refreshSession: async () => {},
       insertSkill: () => {},
-      sessionID: () => "main",
+      sessionID: "main",
     }), { width: 60, height: 60 })
     await setup.renderOnce()
     await setup.flush()
@@ -103,7 +103,7 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Reasoning\s+5 tok/)
     assert.match(frame, /Cache\s+99\.9\d%/)
     assert.doesNotMatch(frame, /◆ Mainagent\s+99\.99%/)
-    assert.match(frame, /Last call:\s+—\s+99\.99%/)
+    assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
   } finally {
@@ -146,8 +146,8 @@ test("renders separate cache rates and last calls for the main agent and subagen
     assert.match(frame, /◆ Mainagent:/)
     assert.match(frame, /↳ Subagents:/)
     assert.match(frame, /◆ Mainagent/)
-    assert.match(frame, /↳ Subagents \(1\)/)
     assert.match(frame, /↳ explore[^\n]*… +50\.00%/)
+    assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Last call:\s+↑75\.0%\s+75\.00%/)
     assert.match(frame, /TTL:\s+●\s+1m 0?s/)
   } finally {

@@ -290,25 +290,25 @@ export function Dashboard(props) {
                   const stats = () => cacheStatsBySession().get(id)
                   const age = () => cacheAge(id)
                   const timestamp = () => stats()?.lastCall?.timestamp
-                  const [labelWidth, setLabelWidth] = createSignal(1)
                   const label = () => row()?.isMain ? "◆ Mainagent" : `↳ ${row()?.label ?? id}`
+                  const rate = () => formatPercentage(stats()?.rate)
                   return (
                     <box width="100%" flexDirection="column">
                       {row()?.isMain && subagentIDs().length === 0 ? null : (
-                        <box width="100%" flexDirection="row" justifyContent="space-between">
-                          <box
-                            flexBasis={0}
+                        <box width="100%" flexDirection="row">
+                          <text
+                            fg={colors().text.base}
                             flexGrow={1}
+                            flexShrink={1}
                             minWidth={0}
-                            overflow="hidden"
-                            onSizeChange={function () { setLabelWidth(this.width) }}
+                            wrapMode="none"
+                            truncate
                           >
-                            <text fg={colors().text.base} wrapMode="none">
-                              {truncateAgentTitle(label(), labelWidth() - 1)}
-                            </text>
-                          </box>
+                            {truncateAgentTitle(label(), 48)}
+                          </text>
+                          <text wrapMode="none"> </text>
                           <text fg={colors().text.muted} flexShrink={0} wrapMode="none">
-                            {formatPercentage(stats()?.rate)}
+                            {rate()}
                           </text>
                         </box>
                       )}
