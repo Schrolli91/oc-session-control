@@ -7,4 +7,4 @@
 ## 2. Verify and publish
 
 - [x] 2.1 Run `npm test`, `npm run check`, and `npm run build`; confirm all pass.
-- [ ] 2.2 Push the fix and open a PR referencing issue #34; verify the PR URL and leave the OpenSpec change unarchived.
+- [x] 2.2 Push the fix and open a PR referencing issue #34; verify the PR URL and leave the OpenSpec change unarchived.
