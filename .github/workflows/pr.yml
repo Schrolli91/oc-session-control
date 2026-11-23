@@ -1,8 +1,6 @@
 name: PR
 
-# PR-only automation: validate titles directly on pull_request, then apply
-# labels from the trusted default-branch workflow after Tests completes.
-
+# Label from the default-branch workflow so fork PRs need no unsafe checkout.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -22,6 +20,7 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
+          # Keep accepted types aligned with the label map and release-please.
           pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
 
           if [[ "$TITLE" =~ $pattern ]]; then
@@ -94,8 +93,7 @@ jobs:
               ;;
           esac
 
-          # Delimiters keep the replacement entry-wise: plain "${all//ci/}"
-          # would also mangle 'dependencies' into 'dependenes'.
+          # Delimiters prevent matching `ci` inside `dependencies`.
           all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
           remove="${all//,$label,/,}"
           remove="${remove#,}"

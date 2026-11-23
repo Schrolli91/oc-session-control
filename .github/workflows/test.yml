@@ -1,15 +1,5 @@
 name: Tests
 
-# Tests run on pull requests from same-repository branches and forks, and again
-# on pushes to main after merges. PR title checks and labels live in pr.yml.
-#
-# The type list below is the repo-wide commit vocabulary: it decides the squash
-# commit on main, the labels, and (via release-please) the CHANGELOG sections.
-# If you add a type here, add it to changelog-sections in
-# release-please-config.json too, otherwise that type never shows up in
-# CHANGELOG.md. release-please itself opens its PR as
-# `chore(main): release X.Y.Z`, which must keep matching this pattern.
-
 on:
   push:
     branches: [main]
@@ -29,8 +19,7 @@ jobs:
           node-version: 26.4.0
       - run: npm ci
       - run: npm run build
-      # --experimental-ffi: die Dashboard-Render-Tests brauchen den nativen
-      # OpenTUI-Renderer (Node >= 26.4). Lokal ohne Flag überspringen sie sich.
+      # Dashboard-Render-Tests benötigen OpenTUI-FFI (Node >= 26.4).
       - run: node --experimental-ffi --test "src/**/*.test.mjs"
       - run: npm run check
       - run: npm pack
