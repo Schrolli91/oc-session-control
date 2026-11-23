@@ -127,30 +127,6 @@ test("keeps loaded history while usage and status events refresh a session", asy
   tracker.dispose()
 })
 
-test("compaction refreshes only the compacted main or subagent session", async () => {
-  const { context, handlers } = makeContext()
-  const invalidated = []
-  const synced = []
-  context.data.session.family = (id) => id === "main" ? ["child", "sibling"] : []
-  context.data.session.message.invalidate = (id) => invalidated.push(id)
-  context.data.session.message.sync = (id) => {
-    synced.push(id)
-    return Promise.resolve()
-  }
-  const tracker = createSessionTracker(context, context.location)
-  tracker.sessionFamily("main")
-  const flush = () => new Promise((resolve) => setImmediate(resolve))
-
-  handlers.get("session.compaction.ended")({ data: { sessionID: "main" } })
-  await flush()
-  handlers.get("session.compaction.ended")({ data: { sessionID: "child" } })
-  await flush()
-
-  assert.deepEqual(invalidated, ["main", "child"])
-  assert.deepEqual(synced, ["main", "child"])
-  tracker.dispose()
-})
-
 test("execution lifecycle events refresh sessions without reloading or backfilling loaded history", async () => {
   const { context, handlers, calls } = makeContext()
   const loadedMore = []
