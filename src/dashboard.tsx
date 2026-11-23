@@ -67,6 +67,8 @@ export function Dashboard(props) {
   const [sessionUsageCollapsed, setSessionUsageCollapsed] = createSignal(false)
   const [sessionTotalCollapsed, setSessionTotalCollapsed] = createSignal(false)
   const [cacheCollapsed, setCacheCollapsed] = createSignal(false)
+  // shortcut: use 48 columns until the first resize reports the actual row width.
+  const [cacheRowWidth, setCacheRowWidth] = createSignal(48)
   const displayedSkills = createMemo(() =>
     skillsForDisplay(orderedSkills(), loadedSkillIDs(), skillsCollapsed()),
   )
@@ -325,18 +327,22 @@ export function Dashboard(props) {
                   return (
                     <box width="100%" flexDirection="column">
                       {row()?.isMain && subagentIDs().length === 0 ? null : (
-                        <box width="100%" flexDirection="row">
+                        <box
+                          width="100%"
+                          flexDirection="row"
+                          onSizeChange={function () { setCacheRowWidth(this.width) }}
+                        >
                           <text
-                            fg={colors().text.base}
+                            flexBasis={0}
                             flexGrow={1}
                             flexShrink={1}
                             minWidth={0}
+                            fg={colors().text.base}
                             wrapMode="none"
-                            truncate
                           >
-                            {truncateAgentTitle(label(), 48)}
+                            {truncateAgentTitle(label(), cacheRowWidth() - rate().length - 2)}
                           </text>
-                          <text wrapMode="none"> </text>
+                          <text wrapMode="none" flexShrink={0}> </text>
                           <text fg={colors().text.muted} flexShrink={0} wrapMode="none">
                             {rate()}
                           </text>
