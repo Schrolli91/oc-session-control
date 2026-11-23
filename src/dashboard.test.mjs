@@ -17,26 +17,30 @@ const models = [{
   cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
 }]
 
-const makeContext = (session, messages) => ({
-  theme: {},
-  themeMode: "dark",
-  data: {
-    session: {
-      get: (id) => (id === "main" ? session : undefined),
-      status: () => "idle",
-      permission: { list: () => [] },
-      form: { list: () => [] },
-      message: { list: (id) => (id === "main" ? messages : []) },
+const makeContext = (session, messages, subagents = []) => {
+  const sessions = new Map([["main", session], ...subagents.map(({ session }) => [session.id, session])])
+  const messagesBySession = new Map([["main", messages], ...subagents.map(({ session, messages }) => [session.id, messages])])
+  return {
+    theme: {},
+    themeMode: "dark",
+    data: {
+      session: {
+        get: (id) => sessions.get(id),
+        status: () => "idle",
+        permission: { list: () => [] },
+        form: { list: () => [] },
+        message: { list: (id) => messagesBySession.get(id) ?? [] },
+      },
+      location: {
+        agent: { list: () => [], sync: async () => {} },
+        skill: { list: () => [], sync: async () => {} },
+        model: { list: (target) => (target === location ? models : []), sync: async () => {} },
+        provider: { list: () => [], sync: async () => {} },
+      },
     },
-    location: {
-      agent: { list: () => [], sync: async () => {} },
-      skill: { list: () => [], sync: async () => {} },
-      model: { list: (target) => (target === location ? models : []), sync: async () => {} },
-      provider: { list: () => [], sync: async () => {} },
-    },
-  },
-  ui: { router: { navigate: () => {} }, dialog: { alert: async () => {} } },
-})
+    ui: { router: { navigate: () => {} }, dialog: { alert: async () => {} } },
+  }
+}
 
 const healthySession = {
   id: "main",
@@ -56,7 +60,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t) => {
+const renderDashboard = async (session, messages, t, subagents = []) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -66,15 +70,15 @@ const renderDashboard = async (session, messages, t) => {
   }
   try {
     const setup = await testRender(() => Dashboard({
-      context: makeContext(session, messages),
+      context: makeContext(session, messages, subagents),
       location,
-      sessionFamily: () => ["main"],
+      sessionFamily: () => subagents.map(({ session: child }) => child.id),
       executingSessionIDs: () => new Set(),
       executionResults: () => new Map(),
       refreshSession: async () => {},
       insertSkill: () => {},
-      sessionID: () => "main",
-    }), { width: 60, height: 40 })
+      sessionID: "main",
+    }), { width: 60, height: 60 })
     await setup.renderOnce()
     await setup.flush()
     return setup
@@ -98,8 +102,54 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Cache Hit\s+1M tok/)
     assert.match(frame, /Reasoning\s+5 tok/)
     assert.match(frame, /Cache\s+99\.9\d%/)
+    assert.doesNotMatch(frame, /◆ Mainagent\s+99\.99%/)
+    assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("renders separate cache rates and last calls for the main agent and subagent", async (t) => {
+  const child = {
+    session: {
+      id: "child",
+      title: "explore-this-very-long-subagent-name-that-must-be-truncated",
+      model: modelRef,
+      cost: 0,
+      location,
+      tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 500, write: 0 } },
+      permissions: [],
+    },
+    messages: [
+      { info: {
+        type: "assistant",
+        model: modelRef,
+        time: { completed: Date.now() - 120_000 },
+        tokens: { input: 100, cache: { read: 0, write: 0 } },
+      } },
+      { info: {
+        type: "assistant",
+        model: modelRef,
+        time: { completed: Date.now() - 60_000 },
+        tokens: { input: 25, cache: { read: 75, write: 0 } },
+      } },
+    ],
+  }
+  const setup = await renderDashboard(healthySession, [assistantMessage], t, [child])
+  if (!setup) return
+  try {
+    const frame = setup.captureCharFrame()
+    assert.match(frame, /Cache\s+99\.94%/)
+    assert.match(frame, /◆ Mainagent\s+99\.99%/)
+    assert.match(frame, /◆ Mainagent:/)
+    assert.match(frame, /↳ Subagents:/)
+    assert.match(frame, /◆ Mainagent/)
+    assert.match(frame, /↳ explore[^\n]*… +50\.00%/)
+    assert.match(frame, /Last call:\s+—\s+99\.98%/)
+    assert.match(frame, /Last call:\s+↑75\.0%\s+75\.00%/)
+    assert.match(frame, /TTL:\s+●\s+1m 0?s/)
   } finally {
     await setup.dispose()
   }

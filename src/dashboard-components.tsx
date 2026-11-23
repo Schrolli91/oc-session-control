@@ -91,8 +91,9 @@ export function TokenUsageBar(props) {
 
 export function SectionDivider(props) {
   const [width, setWidth] = createSignal(0)
-  const label = () => width() >= (props.label?.length ?? 0) + 2 ? props.label ?? "" : ""
-  const labelWidth = () => label() ? label().length + 2 : 0
+  const contentWidth = () => (props.icon?.length ? props.icon.length + 1 : 0) + (props.label?.length ?? 0)
+  const hasLabel = () => width() >= contentWidth() + 2
+  const labelWidth = () => hasLabel() ? contentWidth() + 2 : 0
   const leftWidth = () => Math.max(0, Math.floor((width() - labelWidth()) / 2))
   const rightWidth = () => Math.max(0, width() - leftWidth() - labelWidth())
   return (
@@ -105,7 +106,15 @@ export function SectionDivider(props) {
       onSizeChange={function () { setWidth(this.width) }}
     >
       <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none">{"─".repeat(leftWidth())}</text>
-      <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none">{label() ? ` ${label()} ` : ""}</text>
+      {hasLabel() ? (
+        <>
+          <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none"> </text>
+          {props.icon ? <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none">{props.icon}</text> : null}
+          {props.icon ? <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none"> </text> : null}
+          <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none">{props.label}</text>
+          <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none"> </text>
+        </>
+      ) : null}
       <text fg={props.colors().text.faint} attributes={TextAttributes.DIM} wrapMode="none">{"─".repeat(rightWidth())}</text>
     </box>
   )

@@ -47,8 +47,8 @@ export function buildSessionCostRows(mainCost, subagentCosts, subagentCount, sav
   if (subagentCount === 0) return [savedRow]
 
   return [
-    { label: "Mainagent:", value: mainCost ?? "unavailable" },
-    { label: "Subagents:", value: formatTotal(subagentCosts) },
+    { label: "◆ Mainagent:", value: mainCost ?? "unavailable" },
+    { label: "↳ Subagents:", value: formatTotal(subagentCosts) },
     savedRow,
   ]
 }
