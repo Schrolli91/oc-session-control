@@ -241,6 +241,14 @@ The dashboard MUST read every message page a session's host still serves, not on
 - **WHEN** the host has compacted a session and no longer returns its older messages
 - **THEN** the dashboard reads every message the host still serves and does not treat the first loaded page as the whole transcript
 
+#### Scenario: Backfill waits for an active page load
+- **WHEN** a history refresh finds more pages while an ordinary page load is in progress
+- **THEN** the dashboard waits for that load to settle, then loads all remaining pages if any remain, without starting conflicting loads
+
+#### Scenario: Active page load exhausts history
+- **WHEN** an ordinary page load finishes and no older pages remain
+- **THEN** the dashboard does not start a redundant full-history backfill
+
 ### Requirement: Avoid redundant history reloads during execution updates
 The dashboard MUST refresh session values on ordinary execution lifecycle events without reloading an already available transcript. It MUST still load history when none is available and MUST apply explicit history-changing updates, including compaction, even when they overlap a lightweight refresh.
 
