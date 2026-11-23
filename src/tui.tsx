@@ -4,6 +4,8 @@ import { Dashboard } from "./dashboard.tsx"
 import { getSessionLocation } from "./agents.mjs"
 import { getThemeColors } from "./theme.mjs"
 import { createSessionTracker } from "./session-tracker.ts"
+import open from "open"
+import { checkForUpdate, RELEASES_PAGE_URL } from "./update-check.mjs"
 
 const locationKey = (value) => JSON.stringify([value.directory, value.workspaceID])
 
@@ -13,6 +15,8 @@ export default Plugin.define({
     const location = context.location ?? context.data.location.default()
     const sessionLocation = (id) => getSessionLocation(context.data.session.get(id), location)
     const tracker = createSessionTracker(context, location)
+    const updateCheck = checkForUpdate()
+    const openReleases = () => { void open(RELEASES_PAGE_URL).catch(() => {}) }
     const {
       dashboardContext,
       executingSessionIDs,
@@ -120,6 +124,8 @@ export default Plugin.define({
         render: ({ sessionID }) => sessionID
           ? <Dashboard
             context={dashboardContext}
+            updateCheck={updateCheck}
+            openReleases={openReleases}
             location={location}
             sessionFamily={sessionFamily}
             executingSessionIDs={executingSessionIDs}

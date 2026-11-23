@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import {
   AgentEntry,
   CollapsibleHeader,
@@ -39,6 +40,8 @@ const locationKey = (value) => JSON.stringify([value.directory, value.workspaceI
 
 export function Dashboard(props) {
   const { context, location, sessionFamily, executingSessionIDs, executionResults, refreshSession, insertSkill } = props
+  const [updateAvailable, setUpdateAvailable] = createSignal(null)
+  void props.updateCheck?.then((available) => setUpdateAvailable(available), () => {})
   const sessionID = () => props.sessionID
   const sessionLocation = (id) => getSessionLocation(context.data.session.get(id), location)
   const colors = createMemo(() => getThemeColors(context.theme, context.themeMode))
@@ -193,6 +196,33 @@ export function Dashboard(props) {
       width="100%"
       flexDirection="column"
     >
+      {updateAvailable() ? (
+        <>
+          <box
+            width="100%"
+            flexDirection="row"
+            justifyContent="space-between"
+            onMouseDown={(event) => event.stopPropagation()}
+            onMouseUp={(event) => {
+              event.stopPropagation()
+              if (event.button === 0) props.openReleases?.()
+            }}
+          >
+            <box flexDirection="row">
+              <text fg={colors().agentStatus.working}>↑</text>
+              <text fg={colors().text.base}> </text>
+              <text fg={colors().text.base} attributes={TextAttributes.UNDERLINE}>Update available</text>
+            </box>
+            <box flexDirection="row">
+              <text fg={colors().text.base}>{updateAvailable().current}</text>
+              <text fg={colors().text.muted}> → </text>
+              <text fg={colors().text.base}>{updateAvailable().latest}</text>
+            </box>
+          </box>
+          <text> </text>
+        </>
+      ) : null}
+      <SectionDivider colors={colors} label="Session Overview" />
       <CollapsibleHeader
         colors={colors}
         label="Session usage"

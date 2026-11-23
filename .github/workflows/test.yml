@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       # Dashboard rendering tests require OpenTUI FFI (Node >= 26.4).
-      - run: node --experimental-ffi --test "src/**/*.test.mjs"
+      - run: node --conditions=browser --experimental-ffi --test "src/**/*.test.mjs"
       - run: npm run check
       - run: npm pack
       - run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'

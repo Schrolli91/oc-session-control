@@ -29,7 +29,7 @@ The sidebar shows data for the current session:
 - Loaded and unloaded skills with token estimates. Click a skill to insert its `@skill` reference into a focused prompt; it is not sent.
 - Subagent model, context, and loaded skills. Click a row to open that session.
 
-Click a section heading to collapse or expand it. The dashboard is mouse-only and adds no keyboard bindings. Skill insertion works only when a prompt editor is focused. The plugin reads data through OpenCode host APIs and makes no network requests of its own.
+Click a section heading to collapse or expand it. The dashboard is mouse-only and adds no keyboard bindings. Skill insertion works only when a prompt editor is focused. The plugin reads data through OpenCode host APIs and checks GitHub Releases for newer versions.
 
 ## Development
 
