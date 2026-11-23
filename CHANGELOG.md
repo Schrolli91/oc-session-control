@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.2](https://github.com/Schrolli91/oc-session-control/compare/v0.4.1...v0.4.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* keep context current after compaction ([#38](https://github.com/Schrolli91/oc-session-control/issues/38)) ([118d3c3](https://github.com/Schrolli91/oc-session-control/commit/118d3c324ba0ef87842b19e72288d8c2180e0774))
+* revert context after compaction ([#39](https://github.com/Schrolli91/oc-session-control/issues/39)) ([920f39c](https://github.com/Schrolli91/oc-session-control/commit/920f39c532ad1d09f4019a473598d753dc1f2db1))
+* underline clickable model names ([#36](https://github.com/Schrolli91/oc-session-control/issues/36)) ([e3a3761](https://github.com/Schrolli91/oc-session-control/commit/e3a37615651252a58bab0bb18d36b0b94c81ce87))
+* use trailing ellipsis for cache section titles ([#35](https://github.com/Schrolli91/oc-session-control/issues/35)) ([3764190](https://github.com/Schrolli91/oc-session-control/commit/37641900c2d3bd055cc999d721dca975b763f808))
+
+
+### Documentation
+
+* **openspec:** sync and archive issue 29 change ([#37](https://github.com/Schrolli91/oc-session-control/issues/37)) ([2f57695](https://github.com/Schrolli91/oc-session-control/commit/2f57695fd583bbf3a645d80111a513fbba65e91d))
+* streamline README ([#32](https://github.com/Schrolli91/oc-session-control/issues/32)) ([6055572](https://github.com/Schrolli91/oc-session-control/commit/6055572a800760e194880ead00c8ceaa30dee7a4))
+
 ## [0.4.1](https://github.com/Schrolli91/oc-session-control/compare/v0.4.0...v0.4.1) (2026-11-23)
 
 
