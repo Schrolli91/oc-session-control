@@ -72,7 +72,7 @@ The dashboard MUST show the main session and known subagents in a compact list. 
 - **THEN** its entry shows `unavailable` in gray instead of the blue cost color
 
 #### Scenario: Open a subagent with a click
-- **WHEN** the user left-clicks a subagent entry
+- **WHEN** the user completes a left click on a subagent entry without moving the pointer
 - **THEN** its session opens in the main window
 
 #### Scenario: Separate the main session from subagent sessions
@@ -546,3 +546,30 @@ The dashboard MUST always show the “Session Overview” divider above “Sessi
 #### Scenario: Update is not available
 - **WHEN** the dashboard is rendered and no update notice is shown
 - **THEN** the “Session Overview” divider remains visible above “Session usage”
+
+### Requirement: Activate dashboard controls only on completed clicks
+Interactive dashboard controls MUST run only after an uninterrupted left-button press and release on the same control. Pointer movement that starts a drag and non-left mouse buttons MUST NOT run the action. Nested controls MUST NOT also trigger their parent row's action.
+
+#### Scenario: Ignore a drag on a dashboard control
+- **WHEN** the user presses the left mouse button on an interactive dashboard control, moves the pointer, and releases it
+- **THEN** that control's action does not run
+
+#### Scenario: Ignore non-left clicks
+- **WHEN** the user presses or releases a non-left mouse button on an interactive dashboard control
+- **THEN** that control's action does not run
+
+#### Scenario: Open model details without navigating to the subagent
+- **WHEN** the user completes a left click on a subagent's model name
+- **THEN** model details open and the subagent session does not open
+
+#### Scenario: Open releases from the update hint after a completed click
+- **WHEN** the user completes a left click on the update hint
+- **THEN** the release page opens
+
+#### Scenario: Insert a skill after a completed click
+- **WHEN** the user completes a left click on a skill entry
+- **THEN** that skill is inserted into the session
+
+#### Scenario: Toggle a section after a completed click
+- **WHEN** the user completes a left click on a collapsible section header
+- **THEN** that section toggles its collapsed state
