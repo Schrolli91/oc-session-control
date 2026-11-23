@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup } from "solid-js
 import { TextAttributes } from "@opentui/core"
 import {
   AgentEntry,
+  clickOnRelease,
   CollapsibleHeader,
   SectionDivider,
   TokenUsageBar,
@@ -44,6 +45,7 @@ export function Dashboard(props) {
   const [updateAvailable, setUpdateAvailable] = createSignal(null)
   void props.updateCheck?.then((available) => setUpdateAvailable(available), () => {})
   const sessionID = () => props.sessionID
+  const updateClick = clickOnRelease(() => props.openReleases?.(), true)
   const sessionLocation = (id) => getSessionLocation(context.data.session.get(id), location)
   const colors = createMemo(() => getThemeColors(context.theme, context.themeMode))
   const currentSession = createMemo(() => context.data.session.get(sessionID()))
@@ -203,11 +205,7 @@ export function Dashboard(props) {
             width="100%"
             flexDirection="row"
             justifyContent="space-between"
-            onMouseDown={(event) => event.stopPropagation()}
-            onMouseUp={(event) => {
-              event.stopPropagation()
-              if (event.button === 0) props.openReleases?.()
-            }}
+            {...updateClick}
           >
             <box flexDirection="row">
               <text fg={colors().agentStatus.working}>↑</text>
@@ -402,17 +400,12 @@ export function Dashboard(props) {
             {(skill) => {
               const tokens = estimateSkillTokens(skill.content)
               const [nameWidth, setNameWidth] = createSignal(1)
+              const skillClick = clickOnRelease(() => insertSkill(skill, sessionID(), skillLocation()), true)
               return (
                 <box
                   width="100%"
                   flexDirection="row"
-                  onMouseDown={(event) => {
-                    event.stopPropagation()
-                  }}
-                  onMouseUp={(event) => {
-                    event.stopPropagation()
-                    if (event.button === 0) insertSkill(skill, sessionID(), skillLocation())
-                  }}
+                  {...skillClick}
                 >
                   <box width={2} flexShrink={0}>
                     <text fg={loadedSkillIDs().has(skill.id) ? colors().skills.loaded : colors().skills.unloaded}>

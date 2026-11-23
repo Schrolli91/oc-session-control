@@ -332,6 +332,53 @@ test("disposes listeners once and ignores refreshes afterward", async () => {
   assert.equal(calls.get("session.sync"), undefined)
 })
 
+test("stops a pending refresh after disposal when initial syncs settle", async () => {
+  const { context, calls, count } = makeContext()
+  let releaseSessionSync
+  context.data.session.sync = () => {
+    count("session.sync")
+    return new Promise((resolve) => { releaseSessionSync = resolve })
+  }
+  context.data.session.message.more = () => {
+    count("message.more")
+    return true
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const refresh = tracker.refreshSession("session-1")
+
+  tracker.dispose()
+  releaseSessionSync()
+  await refresh
+
+  assert.equal(calls.get("message.more"), undefined)
+  assert.equal(calls.get("message.loadMore"), undefined)
+  assert.equal(calls.get("form.invalidate"), undefined)
+  assert.equal(calls.get("form.sync"), undefined)
+})
+
+test("stops a pending refresh after disposal when transcript backfill settles", async () => {
+  const { context, calls, count } = makeContext()
+  let releaseBackfill
+  let startedBackfill
+  const backfillStarted = new Promise((resolve) => { startedBackfill = resolve })
+  context.data.session.message.more = () => true
+  context.data.session.message.loadMore = () => {
+    count("message.loadMore")
+    startedBackfill()
+    return new Promise((resolve) => { releaseBackfill = resolve })
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const refresh = tracker.refreshSession("session-1")
+
+  await backfillStarted
+  tracker.dispose()
+  releaseBackfill()
+  await refresh
+
+  assert.equal(calls.get("form.invalidate"), undefined)
+  assert.equal(calls.get("form.sync"), undefined)
+})
+
 test("cleans earlier listeners when event registration fails", () => {
   const { context, handlers } = makeContext()
   const on = context.data.on
