@@ -127,6 +127,48 @@ test("keeps loaded history while usage and status events refresh a session", asy
   tracker.dispose()
 })
 
+test("execution lifecycle events refresh sessions without reloading or backfilling loaded history", async () => {
+  const { context, handlers, calls } = makeContext()
+  const loadedMore = []
+  context.data.session.message.list = () => [{}]
+  context.data.session.message.more = () => true
+  context.data.session.message.loadMore = (id, options) => {
+    loadedMore.push([id, options.all])
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  for (const name of [
+    "session.execution.started",
+    "session.execution.succeeded",
+    "session.execution.failed",
+    "session.execution.interrupted",
+  ]) {
+    handlers.get(name)({ data: { sessionID: "session-1" } })
+    await flush()
+  }
+
+  assert.equal(calls.get("session.sync"), 4)
+  assert.equal(calls.get("message.invalidate"), undefined)
+  assert.equal(calls.get("message.sync"), undefined)
+  assert.deepEqual(loadedMore, [])
+  tracker.dispose()
+})
+
+test("execution events load messages when the session has no loaded history", async () => {
+  const { context, handlers, calls } = makeContext()
+  const tracker = createSessionTracker(context, context.location)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  handlers.get("session.execution.started")({ data: { sessionID: "session-1" } })
+  await flush()
+
+  assert.equal(calls.get("message.invalidate"), 1)
+  assert.equal(calls.get("message.sync"), 1)
+  tracker.dispose()
+})
+
 test("refreshes the root and affected subagent on usage and execution events", async () => {
   const { context, handlers } = makeContext()
   const syncedSessions = []
@@ -166,6 +208,34 @@ test("chains a history-changing refresh behind a lighter one that is running", a
   await Promise.all([light, history])
   assert.equal(calls.get("message.sync"), 1)
   assert.equal(calls.get("message.invalidate"), 1)
+  tracker.dispose()
+})
+
+test("compaction refreshes history when it overlaps an execution refresh", async () => {
+  const { context, handlers, calls } = makeContext()
+  context.data.session.message.list = () => [{}]
+  let releaseLightRefresh
+  let resolveHistoryRefresh
+  const historyRefresh = new Promise((resolve) => { resolveHistoryRefresh = resolve })
+  let sessionSyncs = 0
+  context.data.session.sync = () => {
+    sessionSyncs++
+    if (sessionSyncs === 1) return new Promise((resolve) => { releaseLightRefresh = resolve })
+    if (sessionSyncs === 2) resolveHistoryRefresh()
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  handlers.get("session.execution.started")({ data: { sessionID: "session-1" } })
+  handlers.get("session.compaction.ended")({ data: { sessionID: "session-1" } })
+  assert.equal(calls.get("message.sync"), undefined)
+
+  releaseLightRefresh()
+  await historyRefresh
+  await flush()
+  assert.equal(calls.get("message.invalidate"), 1)
+  assert.equal(calls.get("message.sync"), 1)
   tracker.dispose()
 })
 
