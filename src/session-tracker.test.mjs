@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
+import { createSignal } from "solid-js/dist/solid.js"
 import ts from "typescript"
 import {
   cacheTtlTimerEligible,
@@ -12,7 +13,7 @@ const trackerSource = await readFile(new URL("./session-tracker.ts", import.meta
 const trackerModule = ts.transpileModule(trackerSource, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ESNext },
 }).outputText
-  .replace('"solid-js"', JSON.stringify(import.meta.resolve("solid-js")))
+  .replace('"solid-js"', JSON.stringify(import.meta.resolve("solid-js/dist/solid.js")))
   .replace('"./agents.mjs"', JSON.stringify(new URL("./agents.mjs", import.meta.url).href))
 const { createSessionTracker } = await import(`data:text/javascript;base64,${Buffer.from(trackerModule).toString("base64")}`)
 
@@ -97,6 +98,61 @@ test("backfills the transcript pages the newest-page sync cannot see", async () 
 
   await tracker.refreshSession("session-2")
   assert.equal(loaded.length, 1)
+  tracker.dispose()
+})
+
+test("waits for an active page load before backfilling remaining history", async () => {
+  const { context } = makeContext()
+  const [loading, setLoading] = createSignal(true)
+  let remaining = true
+  const loaded = []
+  context.data.session.message.more = () => remaining
+  context.data.session.message.loading = () => loading()
+  context.data.session.message.loadMore = (id, options) => {
+    loaded.push([id, options.all])
+    remaining = false
+    return Promise.resolve()
+  }
+  let finishPageLoad
+  const pageLoad = new Promise((resolve) => {
+    finishPageLoad = () => {
+      setLoading(false)
+      resolve()
+    }
+  })
+  const tracker = createSessionTracker(context, context.location)
+  const refresh = tracker.refreshSession("session-1")
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(loaded, [])
+  finishPageLoad()
+  await pageLoad
+  await refresh
+
+  assert.deepEqual(loaded, [["session-1", true]])
+  tracker.dispose()
+})
+
+test("skips backfill when an active page load exhausts history", async () => {
+  const { context } = makeContext()
+  const [loading, setLoading] = createSignal(true)
+  let remaining = true
+  const loaded = []
+  context.data.session.message.more = () => remaining
+  context.data.session.message.loading = () => loading()
+  context.data.session.message.loadMore = (id, options) => {
+    loaded.push([id, options.all])
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const refresh = tracker.refreshSession("session-1")
+  await new Promise((resolve) => setImmediate(resolve))
+
+  remaining = false
+  setLoading(false)
+  await refresh
+
+  assert.deepEqual(loaded, [])
   tracker.dispose()
 })
 
@@ -375,6 +431,27 @@ test("stops a pending refresh after disposal when transcript backfill settles", 
   releaseBackfill()
   await refresh
 
+  assert.equal(calls.get("form.invalidate"), undefined)
+  assert.equal(calls.get("form.sync"), undefined)
+})
+
+test("stops waiting for an active page load after disposal", async () => {
+  const { context, calls, count } = makeContext()
+  const [loading] = createSignal(true)
+  context.data.session.message.more = () => true
+  context.data.session.message.loading = () => loading()
+  context.data.session.message.loadMore = () => {
+    count("message.loadMore")
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const refresh = tracker.refreshSession("session-1")
+  await new Promise((resolve) => setImmediate(resolve))
+
+  tracker.dispose()
+  await refresh
+
+  assert.equal(calls.get("message.loadMore"), undefined)
   assert.equal(calls.get("form.invalidate"), undefined)
   assert.equal(calls.get("form.sync"), undefined)
 })
