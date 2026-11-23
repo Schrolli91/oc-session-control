@@ -1,0 +1,114 @@
+name: PR
+
+# PR-only automation: validate titles directly on pull_request, then apply
+# labels from the trusted default-branch workflow after Tests completes.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|ci|chore|deps)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$'
+
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "PR title is valid: $TITLE"
+            exit 0
+          fi
+
+          {
+            echo "### PR title does not follow Conventional Commits"
+            echo
+            echo "Received: \`$TITLE\`"
+            echo
+            echo "Expected: \`<type>(<scope>)!: <description>\`"
+            echo
+            echo "- type: feat, fix, docs, refactor, test, ci, chore, deps"
+            echo "- scope: optional, lowercase"
+            echo "- \`!\` before the colon marks a breaking change"
+            echo
+            echo "Examples: \`fix: guard against empty session list\`, \`feat(tui)!: drop node 20 support\`, \`deps: bump @opencode/plugin\`"
+            echo
+            echo "The PR title becomes the squash commit on main and feeds the changelog."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::PR title must match '<type>(<scope>)!: <description>' (got: $TITLE)"
+          exit 1
+
+  label:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Apply type label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number || '' }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name || '' }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr="$PR_NUMBER"
+          if [[ -z "$pr" && -n "$HEAD_REPO" && -n "$HEAD_BRANCH" && -n "$HEAD_SHA" ]]; then
+            head_owner="${HEAD_REPO%%/*}"
+            pulls="$(gh api --method GET "repos/$REPO/pulls" \
+              -f state=open -f base=main -f head="$head_owner:$HEAD_BRANCH" -F per_page=100)"
+            pr="$(jq -r --arg sha "$HEAD_SHA" '[.[] | select(.head.sha == $sha) | .number][0] // empty' <<< "$pulls")"
+          fi
+          if [[ -z "$pr" ]]; then
+            echo "::notice::No matching open pull request for '$HEAD_REPO:$HEAD_BRANCH' at '$HEAD_SHA'; skipping label"
+            exit 0
+          fi
+
+          TITLE="$(gh pr view "$pr" --repo "$REPO" --json title --jq .title)"
+
+          type="${TITLE%%(*}"
+          type="${type%%!*}"
+          type="${type%%:*}"
+
+          case "$type" in
+            feat)   label="feature" ;;
+            fix)    label="bug" ;;
+            test)   label="tests" ;;
+            docs|refactor|ci|chore) label="$type" ;;
+            deps)   label="dependencies" ;;
+            *)
+              echo "::error::Unmapped type '$type'"
+              exit 1
+              ;;
+          esac
+
+          # Delimiters keep the replacement entry-wise: plain "${all//ci/}"
+          # would also mangle 'dependencies' into 'dependenes'.
+          all=",feature,bug,docs,refactor,tests,ci,chore,dependencies,"
+          remove="${all//,$label,/,}"
+          remove="${remove#,}"
+          remove="${remove%,}"
+
+          add="$label"
+          breaking_re='^[a-z]+(\([^)]*\))?!:'
+          if [[ "$TITLE" =~ $breaking_re ]]; then
+            add="$add,breaking-change"
+            echo "Breaking change detected"
+          else
+            remove="${remove:+$remove,}breaking-change"
+          fi
+
+          gh pr edit "$pr" --repo "$REPO" --remove-label "$remove" --add-label "$add"
+          echo "Labelled PR #$pr as '$add'"
