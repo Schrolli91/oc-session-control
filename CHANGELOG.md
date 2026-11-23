@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.1](https://github.com/Schrolli91/oc-session-control/compare/v0.5.0...v0.5.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* avoid redundant root session sync during dashboard refresh ([#54](https://github.com/Schrolli91/oc-session-control/issues/54)) ([4b1b96b](https://github.com/Schrolli91/oc-session-control/commit/4b1b96b8a26742274b0a03e9f459378adadc6113))
+* navigate to subagents on click release ([#50](https://github.com/Schrolli91/oc-session-control/issues/50)) ([5c96db9](https://github.com/Schrolli91/oc-session-control/commit/5c96db93ef17a093869addfb8a6ce4875243aad6))
+* retry session history backfill after active pagination ([#53](https://github.com/Schrolli91/oc-session-control/issues/53)) ([e86e880](https://github.com/Schrolli91/oc-session-control/commit/e86e8804787c61d023279cf75b6ea11d6a2e8fd1))
+* stop pending refresh work after tracker disposal ([#49](https://github.com/Schrolli91/oc-session-control/issues/49)) ([7977909](https://github.com/Schrolli91/oc-session-control/commit/797790991d9607456ddb0b536b7bce0c0177789f))
+* truncate dashboard labels by terminal cell width ([#51](https://github.com/Schrolli91/oc-session-control/issues/51)) ([fb93d66](https://github.com/Schrolli91/oc-session-control/commit/fb93d664bad1ff5f6658812cb95995d1b9c53e8c))
+
 ## [0.5.0](https://github.com/Schrolli91/oc-session-control/compare/v0.4.2...v0.5.0) (2026-11-23)
 
 
