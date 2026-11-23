@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js"
+import { createComputed, createRoot, createSignal } from "solid-js"
 import { familyEventSessionIDs, getSessionLocation } from "./agents.mjs"
 
 const locationKey = (value) => JSON.stringify([value.directory, value.workspaceID])
@@ -10,6 +10,7 @@ export function createSessionTracker(context, location) {
   const sessionSnapshots = new Map()
   const locationSnapshots = new Map()
   const refreshes = new Map()
+  const messageLoadWaiters = new Set<() => void>()
   const disposers = []
   let disposed = false
   let activeSessionIDs
@@ -89,6 +90,22 @@ export function createSessionTracker(context, location) {
     }
   }
 
+  const waitForMessageLoad = (id) => new Promise<void>((resolve) => {
+    let disposeWait: (() => void) | undefined
+    const finish = () => {
+      disposeWait?.()
+      messageLoadWaiters.delete(finish)
+      resolve()
+    }
+    messageLoadWaiters.add(finish)
+    createRoot((dispose) => {
+      disposeWait = dispose
+      createComputed(() => {
+        if (disposed || !context.data.session.message.loading(id)) finish()
+      })
+    })
+  })
+
   const sessionFamily = (id) => {
     const family = typeof context.data.session.family === "function"
       ? context.data.session.family(id)
@@ -122,11 +139,16 @@ export function createSessionTracker(context, location) {
         context.data.session.permission.sync(id),
       ])
       if (disposed) return
-      // Walk the transcript pages the newest-page sync cannot see. `more` clears
-      // itself once the cursor is exhausted, so this runs once per trimming sync.
-      if (refreshMessages && context.data.session.message.more(id) && !context.data.session.message.loading(id)) {
+      // Wait for external pagination before backfilling the remaining transcript.
+      while (refreshMessages && context.data.session.message.more(id)) {
+        if (context.data.session.message.loading(id)) {
+          await waitForMessageLoad(id)
+          if (disposed) return
+          continue
+        }
         await context.data.session.message.loadMore(id, { all: true })
         if (disposed) return
+        break
       }
       if (disposed) return
       const targetLocation = getSessionLocation(context.data.session.get(id), location)
@@ -178,6 +200,7 @@ export function createSessionTracker(context, location) {
       try { stop() } catch {}
     }
     refreshes.clear()
+    for (const finish of [...messageLoadWaiters]) finish()
     familySnapshots.clear()
     sessionSnapshots.clear()
     locationSnapshots.clear()
