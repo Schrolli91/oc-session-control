@@ -24,13 +24,14 @@ import {
   buildUsageBreakdown,
   cacheHitRate,
   cacheTtlStatus,
+  elapsedSince,
   formatElapsed,
   formatPercentage,
   formatPercentageChange,
   formatTokenCount,
   formatTokenTotal,
   formatTokenTotalWithUnit,
-  lastCacheCallStats,
+  sessionCacheStats,
 } from "./usage.mjs"
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -105,6 +106,19 @@ export function Dashboard(props) {
   const mainRow = () => viewModel().mainRow
   const subagentRows = () => viewModel().subagentRows
   const subagentIDs = () => viewModel().subagentIDs
+  const cacheStatsBySession = createMemo(() => new Map<string, ReturnType<typeof sessionCacheStats>>(sessionIDs().map((id) => [
+    id,
+    sessionCacheStats(
+      context.data.session.get(id),
+      context.data.session.message.list(id),
+    ),
+  ])))
+  const cacheRows = createMemo(() => {
+    const rowBySessionID = viewModel().rowBySessionID
+    return [mainRow(), ...subagentIDs().map((id) => rowBySessionID.get(id))]
+      .filter(Boolean)
+      .map((row) => row.sessionID)
+  })
   const loadedVisibleSkillCount = () => viewModel().skillSummary.loadedCount
   const loadedVisibleSkillTokens = () => viewModel().skillSummary.loadedTokens
   const usage = createMemo(() => aggregateUsage(
@@ -114,14 +128,11 @@ export function Dashboard(props) {
     modelsForSession,
   ))
   const usageBreakdown = createMemo(() => usage() ? buildUsageBreakdown(usage()) : undefined)
-  const cacheCalls = createMemo(() => lastCacheCallStats(
-    sessionIDs(),
-    (id) => context.data.session.message.list(id),
-  ))
+  const hasCache = createMemo(() => Boolean(usage() || cacheRows().some(
+    (id) => cacheStatsBySession().get(id)?.lastCall,
+  )))
   const [now, setNow] = createSignal(Date.now())
-  const cacheAge = () => Number.isFinite(cacheCalls()?.timestamp)
-    ? Math.max(0, now() - cacheCalls().timestamp)
-    : undefined
+  const cacheAge = (id) => elapsedSince(cacheStatsBySession().get(id)?.lastCall?.timestamp, now())
   const costs = createMemo(() =>
     aggregateCosts(sessionIDs(), (id) => ownCost(id)),
   )
@@ -135,7 +146,10 @@ export function Dashboard(props) {
     ttlTimer = syncDashboardTimer(
       ttlTimer,
       sessionID(),
-      cacheTtlTimerEligible(cacheCollapsed(), cacheCalls()?.timestamp),
+      cacheTtlTimerEligible(
+        cacheCollapsed(),
+        cacheRows().map((id) => cacheStatsBySession().get(id)?.lastCall?.timestamp).find(Number.isFinite),
+      ),
       () => setNow(Date.now()),
       1_000,
     )
@@ -192,7 +206,11 @@ export function Dashboard(props) {
             viewModel().subagentCount,
             usage()?.saved,
           )}>
-            {(row) => <UsageStat colors={colors} label={row.label} value={row.value} />}
+            {(row) => <UsageStat
+              colors={colors}
+              label={row.label}
+              value={row.value}
+            />}
           </For>
         </box>
       ) : null}
@@ -254,7 +272,7 @@ export function Dashboard(props) {
           ) : null}
         </box>
       ) : null}
-      {usage() || cacheCalls() ? (
+      {hasCache() ? (
         <box width="100%" flexDirection="column">
           <text> </text>
           <CollapsibleHeader
@@ -266,28 +284,62 @@ export function Dashboard(props) {
           />
           {!cacheCollapsed() ? (
             <box width="100%" flexDirection="column" paddingLeft={2}>
-              <box width="100%" flexDirection="row" justifyContent="space-between">
-                <text fg={colors().text.muted}>Last call:</text>
-                <box flexDirection="row">
-                  <text fg={colors().text.muted}>{formatPercentageChange(cacheCalls()?.change)} </text>
-                  <text fg={colors().text.muted}>{formatPercentage(cacheCalls()?.rate)}</text>
-                </box>
-              </box>
-              <box width="100%" flexDirection="row" justifyContent="space-between">
-                <text fg={colors().text.muted}>TTL:</text>
-                <box flexDirection="row">
-                  <text fg={cacheCalls()?.timestamp === undefined
-                    ? colors().text.muted
-                    : colors().cacheTTL[cacheTtlStatus(cacheAge())]}>●</text>
-                  <text fg={colors().text.muted}> {formatElapsed(cacheAge())}</text>
-                </box>
-              </box>
+              <For each={cacheRows()}>
+                {(id) => {
+                  const row = () => viewModel().rowBySessionID.get(id)
+                  const stats = () => cacheStatsBySession().get(id)
+                  const age = () => cacheAge(id)
+                  const timestamp = () => stats()?.lastCall?.timestamp
+                  const [labelWidth, setLabelWidth] = createSignal(1)
+                  const label = () => row()?.isMain ? "◆ Mainagent" : `↳ ${row()?.label ?? id}`
+                  return (
+                    <box width="100%" flexDirection="column">
+                      {row()?.isMain && subagentIDs().length === 0 ? null : (
+                        <box width="100%" flexDirection="row" justifyContent="space-between">
+                          <box
+                            flexBasis={0}
+                            flexGrow={1}
+                            minWidth={0}
+                            overflow="hidden"
+                            onSizeChange={function () { setLabelWidth(this.width) }}
+                          >
+                            <text fg={colors().text.base} wrapMode="none">
+                              {truncateAgentTitle(label(), labelWidth() - 1)}
+                            </text>
+                          </box>
+                          <text fg={colors().text.muted} flexShrink={0} wrapMode="none">
+                            {formatPercentage(stats()?.rate)}
+                          </text>
+                        </box>
+                      )}
+                      <box width="100%" flexDirection="column">
+                        <box width="100%" flexDirection="row" justifyContent="space-between">
+                          <text fg={colors().text.muted}>Last call:</text>
+                          <box flexDirection="row">
+                            <text fg={colors().text.muted}>{formatPercentageChange(stats()?.lastCall?.change)} </text>
+                            <text fg={colors().text.muted}>{formatPercentage(stats()?.lastCall?.rate)}</text>
+                          </box>
+                        </box>
+                        <box width="100%" flexDirection="row" justifyContent="space-between">
+                          <text fg={colors().text.muted}>TTL:</text>
+                          <box flexDirection="row">
+                            <text fg={Number.isFinite(timestamp())
+                              ? colors().cacheTTL[cacheTtlStatus(age())]
+                              : colors().text.muted}>●</text>
+                            <text fg={colors().text.muted}> {formatElapsed(age())}</text>
+                          </box>
+                        </box>
+                      </box>
+                    </box>
+                  )
+                }}
+              </For>
             </box>
           ) : null}
         </box>
       ) : null}
-      {usage() || cacheCalls() ? <text> </text> : null}
-      {usage() || cacheCalls() ? <SectionDivider colors={colors} label="Mainagent" /> : null}
+      {hasCache() ? <text> </text> : null}
+      {hasCache() ? <SectionDivider colors={colors} icon="◆" label="Mainagent" /> : null}
       {mainRow() ? <AgentEntry
         row={mainRow()}
         spinnerFrame={spinnerFrame()}
@@ -354,7 +406,7 @@ export function Dashboard(props) {
       {subagentIDs().length > 0 ? (
         <box width="100%" flexDirection="column">
           {mainRow() ? <text> </text> : null}
-          {mainRow() ? <SectionDivider colors={colors} label={`Subagents (${subagentIDs().length})`} /> : null}
+          {mainRow() ? <SectionDivider colors={colors} icon="↳" label={`Subagents (${subagentIDs().length})`} /> : null}
           <For each={subagentIDs()}>
             {(id) => {
               const row = createMemo(() => viewModel().rowBySessionID.get(id))

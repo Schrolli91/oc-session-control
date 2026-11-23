@@ -44,8 +44,8 @@ test("builds visible cost rows even when token usage and cache savings are unava
     1,
     undefined,
   ), [
-    { label: "Mainagent:", value: "$0.1000" },
-    { label: "Subagents:", value: "$0.2000" },
+    { label: "◆ Mainagent:", value: "$0.1000" },
+    { label: "↳ Subagents:", value: "$0.2000" },
     { label: "Saved (est.):", value: "unavailable" },
   ])
 })
@@ -64,8 +64,8 @@ test("hides both cost rows without subagents but keeps them for free subagents",
     1,
     undefined,
   ), [
-    { label: "Mainagent:", value: "$0.1000" },
-    { label: "Subagents:", value: "$0.0000" },
+    { label: "◆ Mainagent:", value: "$0.1000" },
+    { label: "↳ Subagents:", value: "$0.0000" },
     { label: "Saved (est.):", value: "unavailable" },
   ])
 })

@@ -6,6 +6,7 @@ import {
   buildUsageBreakdown,
   cacheHitRate,
   cacheTtlStatus,
+  elapsedSince,
   formatElapsed,
   formatPercentage,
   formatPercentageChange,
@@ -14,6 +15,7 @@ import {
   formatTokenTotalWithUnit,
   lastCacheCallStats,
   latestAssistantUsage,
+  sessionCacheStats,
   usageBarWidths,
 } from "./usage.mjs"
 
@@ -318,7 +320,7 @@ test("keeps usage available when message history has a malformed shape", () => {
     saved: { total: 0, known: 0, missing: 1 },
   })
   assert.equal(latestAssistantUsage({ unexpected: true }), undefined)
-  assert.equal(lastCacheCallStats(["main"], () => ({ unexpected: true })), undefined)
+  assert.equal(lastCacheCallStats({ unexpected: true }), undefined)
 })
 
 test("prices each call under its own model when session history switches models", () => {
@@ -422,7 +424,7 @@ test("appends the unit only to valid token totals", () => {
   assert.equal(formatTokenTotalWithUnit(NaN), "—")
 })
 
-test("calculates family and per-call cache hit rates", () => {
+test("calculates family and per-session cache hit rates and call changes", () => {
   assert.equal(cacheHitRate(700, 300), 30)
   assert.equal(cacheHitRate(0, 0), undefined)
   assert.equal(cacheHitRate(Number.MAX_VALUE, Number.MAX_VALUE), 50)
@@ -431,22 +433,53 @@ test("calculates family and per-call cache hit rates", () => {
   assert.equal(cacheHitRate(700, 300, 0), 30)
   assert.equal(cacheHitRate(700, 300, 1_000), 15)
   const messages = {
-    main: [{ info: {
-      type: "assistant",
-      time: { created: 1_000, completed: 1_100 },
-      tokens: { input: 60, cache: { read: 40, write: 0 } },
-    } }],
-    child: [{ info: {
-      type: "assistant",
-      time: { created: 2_000, completed: 2_100 },
-      tokens: { input: 40, cache: { read: 60, write: 60 } },
-    } }],
+    main: [
+      {
+        info: {
+          type: "assistant",
+          time: { created: 1_000, completed: 1_100 },
+          tokens: { input: 60, cache: { read: 40, write: 0 } },
+        },
+      },
+      {
+        info: {
+          type: "assistant",
+          time: { created: 1_200, completed: 1_300 },
+          tokens: { input: 75, cache: { read: 25, write: 0 } },
+        },
+      },
+    ],
+    child: [
+      {
+        info: {
+          type: "assistant",
+          time: { created: 2_000, completed: 2_100 },
+          tokens: { input: 50, cache: { read: 50, write: 0 } },
+        },
+      },
+      {
+        info: {
+          type: "assistant",
+          time: { created: 2_200, completed: 2_300 },
+          tokens: { input: 40, cache: { read: 60, write: 60 } },
+        },
+      },
+    ],
   }
-  assert.deepEqual(lastCacheCallStats(["main", "child"], (id) => messages[id]), {
-    rate: 37.5,
-    change: -2.5,
-    timestamp: 2_100,
+  const mainStats = sessionCacheStats({ tokens: { input: 900, cache: { read: 100, write: 0 } } }, messages.main)
+  const childStats = sessionCacheStats({ tokens: { input: 50, cache: { read: 50, write: 0 } } }, messages.child)
+  assert.deepEqual(mainStats, {
+    rate: 10,
+    lastCall: { rate: 25, change: -15, timestamp: 1_300 },
   })
+  assert.deepEqual(childStats, {
+    rate: 50,
+    lastCall: { rate: 37.5, change: -12.5, timestamp: 2_300 },
+  })
+  const familyRate = cacheHitRate(900 + 50, 100 + 50, 0)
+  assert.ok(Math.abs(familyRate - 13.636363636363637) < 1e-12)
+  assert.notEqual(familyRate, (mainStats.rate + childStats.rate) / 2)
+  assert.deepEqual(sessionCacheStats(undefined, undefined), { rate: undefined, lastCall: undefined })
 })
 
 test("orders calls with valid timestamps after calls missing timestamps", () => {
@@ -466,7 +499,7 @@ test("orders calls with valid timestamps after calls missing timestamps", () => 
       tokens: { input: 1, cache: { read: 3 } },
     } }],
   }
-  assert.deepEqual(lastCacheCallStats(["first", "missing", "last"], (id) => messages[id]), {
+  assert.deepEqual(lastCacheCallStats([...messages.first, ...messages.missing, ...messages.last]), {
     rate: 25,
     change: -50,
     timestamp: 300,
@@ -486,6 +519,31 @@ test("formats cache percentages and TTL thresholds", () => {
   assert.equal(cacheTtlStatus(180_000), "aging")
   assert.equal(cacheTtlStatus(299_999), "aging")
   assert.equal(cacheTtlStatus(300_000), "stale")
+})
+
+test("tracks per-session cache ages and handles a missing timestamp", () => {
+  const now = 300_000
+  const statsFor = (timestamp) => sessionCacheStats(
+    { tokens: { input: 1, cache: { read: 1, write: 0 } } },
+    [{ info: {
+      type: "assistant",
+      time: timestamp === undefined ? {} : { completed: timestamp },
+      tokens: { input: 1, cache: { read: 1, write: 0 } },
+    } }],
+  )
+  const mainCall = statsFor(120_001).lastCall
+  const childCall = statsFor(120_000).lastCall
+  const missingCall = statsFor(undefined).lastCall
+
+  assert.equal(elapsedSince(mainCall.timestamp, now), 179_999)
+  assert.equal(cacheTtlStatus(elapsedSince(mainCall.timestamp, now)), "fresh")
+  assert.equal(elapsedSince(childCall.timestamp, now), 180_000)
+  assert.equal(cacheTtlStatus(elapsedSince(childCall.timestamp, now)), "aging")
+  assert.equal(elapsedSince(0, now), 300_000)
+  assert.equal(cacheTtlStatus(elapsedSince(0, now)), "stale")
+  assert.equal(missingCall.timestamp, undefined)
+  assert.equal(elapsedSince(missingCall.timestamp, now), undefined)
+  assert.equal(formatElapsed(elapsedSince(missingCall.timestamp, now)), "—")
 })
 
 test("formats context token counts compactly", () => {

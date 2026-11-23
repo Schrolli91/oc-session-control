@@ -127,6 +127,29 @@ test("keeps loaded history while usage and status events refresh a session", asy
   tracker.dispose()
 })
 
+test("refreshes the root and affected subagent on usage and execution events", async () => {
+  const { context, handlers } = makeContext()
+  const syncedSessions = []
+  context.data.session.family = (id) => id === "main" ? ["child"] : []
+  context.data.session.sync = (id) => {
+    syncedSessions.push(id)
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  tracker.sessionFamily("main")
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  handlers.get("session.usage.updated")({ data: { parentID: "main", sessionID: "child" } })
+  await flush()
+  assert.deepEqual(syncedSessions, ["main", "child"])
+
+  syncedSessions.length = 0
+  handlers.get("session.execution.succeeded")({ data: { parentID: "main", sessionID: "child" } })
+  await flush()
+  assert.deepEqual(syncedSessions, ["main", "child"])
+  tracker.dispose()
+})
+
 test("chains a history-changing refresh behind a lighter one that is running", async () => {
   const { context, calls, count } = makeContext()
   context.data.session.message.list = () => [{}]

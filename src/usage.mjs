@@ -195,20 +195,17 @@ export function cacheHitRate(input, cacheRead, cacheWrite = 0) {
   return rate === undefined ? undefined : Number(rate.toPrecision(15))
 }
 
-export function lastCacheCallStats(sessionIDs, getMessages) {
+export function lastCacheCallStats(messages) {
+  if (!Array.isArray(messages)) return undefined
   const calls = []
-  for (const sessionID of new Set(sessionIDs.filter(Boolean))) {
-    const messages = getMessages(sessionID)
-    if (!Array.isArray(messages)) continue
-    for (const message of messages) {
-      const info = message?.info ?? message
-      if (info?.type !== "assistant" || !info.tokens) continue
-      calls.push({
-        rate: cacheHitRate(info.tokens.input, info.tokens.cache?.read, info.tokens.cache?.write),
-        timestamp: info.time?.completed ?? info.time?.created,
-        order: calls.length,
-      })
-    }
+  for (const message of messages) {
+    const info = message?.info ?? message
+    if (info?.type !== "assistant" || !info.tokens) continue
+    calls.push({
+      rate: cacheHitRate(info.tokens.input, info.tokens.cache?.read, info.tokens.cache?.write),
+      timestamp: info.time?.completed ?? info.time?.created,
+      order: calls.length,
+    })
   }
   calls.sort((a, b) => {
     const aHasTime = Number.isFinite(a.timestamp)
@@ -230,6 +227,14 @@ export function lastCacheCallStats(sessionIDs, getMessages) {
     : undefined
 }
 
+export function sessionCacheStats(session, messages) {
+  const tokens = session?.tokens
+  return {
+    rate: cacheHitRate(tokens?.input, tokens?.cache?.read, tokens?.cache?.write),
+    lastCall: lastCacheCallStats(messages),
+  }
+}
+
 export function formatPercentage(value) {
   if (!Number.isFinite(value)) return "—"
   // 1e-9 kompensiert die Gleitkomma-Unterschreitung von value*100 (z.B. 0.29),
@@ -247,6 +252,12 @@ export function cacheTtlStatus(elapsed) {
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= 5 * 60_000) return "stale"
   if (elapsed < 3 * 60_000) return "fresh"
   return "aging"
+}
+
+export function elapsedSince(timestamp, now) {
+  return Number.isFinite(timestamp) && Number.isFinite(now)
+    ? Math.max(0, now - timestamp)
+    : undefined
 }
 
 export function formatElapsed(elapsed) {
