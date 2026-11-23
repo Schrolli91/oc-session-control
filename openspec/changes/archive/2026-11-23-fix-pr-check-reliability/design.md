@@ -36,7 +36,7 @@ GitHub will block `pull_request_target` by default in public repositories starti
 ## Risks / Trade-offs
 
 - `[pull_request_target]` is privileged → scope the event policy to `pr.yml`, grant write access only to the label job, and never check out or execute PR code.
-- `[the PR title is untrusted]` → pass it through environment variables and keep it out of workflow-command output; include it only in the step summary.
+- `[the PR title is untrusted]` → pass it through environment variables and do not write it to workflow-command output or the step summary.
 - `[the event policy is removed or misconfigured]` → GitHub will block PR metadata jobs after Dec 2; verify the active policy targets only `.github/workflows/pr.yml` and allows `pull_request_target`.
 - `[tests run on documentation-only PRs]` → accepted; keeping a required check simple and reliable is preferred to conditional path filtering.
 - `[RELEASE_PLEASE_TOKEN` is missing]` → the preflight step fails before release-please can create a PR without checks.

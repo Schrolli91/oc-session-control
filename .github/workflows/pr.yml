@@ -27,8 +27,6 @@ jobs:
           {
             echo "### PR title does not follow Conventional Commits"
             echo
-            echo "Received: \`$TITLE\`"
-            echo
             echo "Expected: \`<type>(<scope>)!: <description>\`"
             echo
             echo "- type: feat, fix, docs, refactor, test, ci, chore, deps"
