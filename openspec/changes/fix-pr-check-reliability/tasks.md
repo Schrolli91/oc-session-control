@@ -1,24 +1,25 @@
 # Tasks
 
-## 1. Repository settings (maintainer-only, GitHub UI — no file changes)
+## 1. Repository settings
 
-- [x] 1.1 Create the secret `RELEASE_PLEASE_TOKEN` as a fine-grained PAT scoped to this repository with Contents: read/write and Pull requests: read/write (a GitHub App installation token works too), record its expiry date, and verify `gh secret list` shows `RELEASE_PLEASE_TOKEN`.
+- [x] 1.1 Create `RELEASE_PLEASE_TOKEN` as a fine-grained PAT scoped to this repository with Contents and Pull requests read/write; verify it appears in `gh secret list`.
 
 ## 2. Workflows
 
-- [x] 2.1 Add `token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}` to the `googleapis/release-please-action@v4` step in `.github/workflows/release.yml`, and verify the file still parses by checking the Actions tab reports the `Release` workflow as valid after the push.
-- [x] 2.2 Split workflow ownership: keep only `test` in `.github/workflows/test.yml`, triggered on PRs and pushes to `main`; put `pr-title` on pull request events and `label` on `workflow_run` after `Tests` in `.github/workflows/pr.yml`. Preserve the required job ids `test` and `pr-title`; remove `.github/workflows/label.yml` and all `pull_request_target` triggers. Verify the three workflow files have the intended scopes and the required check names remain unchanged.
-- [x] 2.3 Fix `.github/workflows/pr.yml` PR resolution: use `workflow_run.pull_requests[0].number` when present, otherwise query the REST API using the run's head repository, branch, and SHA; never use unsupported `gh run view --json pullRequests` or select a PR by branch name alone. Keep write permission limited to the label job, do not check out PR code, and preserve the type-to-label mapping. Verify same-repository lookup locally; keep live fork verification in task 4.2. Run `openspec validate --all` and confirm no `pull_request_target` trigger or checkout in `pr.yml`.
+- [x] 2.1 Keep `release.yml` passing `RELEASE_PLEASE_TOKEN || GITHUB_TOKEN` to release-please; verify release workflow validation after push.
+- [ ] 2.2 Keep `test.yml` tests-only on PRs and pushes to `main`. Add job-level path detection for `src/**`, `scripts/**`, `.opencode/plugins/oc-session-control/tui.tsx`, `package.json`, `package-lock.json`, `tsconfig.json`, and `.github/workflows/test.yml`; keep the required `test` check successful when no matching paths change.
+- [ ] 2.3 Make `pr.yml` run directly on `pull_request_target` for `opened`, `edited`, `reopened`, and `synchronize`. Validate the title, then label the PR from event data; grant `pull-requests: write` only to the label job and do not check out PR code.
+- [x] 2.4 Create an active repository Actions policy scoped only to `.github/workflows/pr.yml` that allows `pull_request_target`; verify its saved path and event restrictions.
 
 ## 3. Documentation
 
-- [x] 3.1 Update the "CI and releases" subsection in `README.md` after "Checks" to state that `test.yml` runs tests on every PR (same-repository and fork) and on pushes to `main`, while `pr.yml` validates titles on PR events and labels after the `Tests` workflow completes once `pr.yml` is on the default branch. Document that the configured `RELEASE_PLEASE_TOKEN` must be renewed before expiry and the close/reopen fallback if bot checks fail to start. Verify claims against workflows and branch rules.
+- [x] 3.1 Update the README to describe the path-filtered test workflow, direct PR title/label workflow, scoped Actions event policy, configured release token, and token renewal.
 
 ## 4. Integration verification
 
-- [x] 4.1 Verify the split `test` and `pr-title` workflows both report on this PR without any manual run approval; note that label activation depends on `pr.yml` being on the default branch.
-- [ ] 4.2 After merge, open a follow-up PR and verify `label` appears on its own together with `test` and `pr-title`, for a same-repository branch and, when one is available, for a fork PR.
-- [ ] 4.3 On the next release-please PR, verify `test` and `pr-title` report without the "Approve workflows to run" banner and the type label appears on its own; if `RELEASE_PLEASE_TOKEN` is not yet set, verify the run is approval-required instead of missing entirely and record which case was observed.
+- [ ] 4.1 Verify the current PR reports required checks and that code-path changes run tests while documentation-only changes leave the required `test` check successful without running tests.
+- [ ] 4.2 After merge, verify direct title validation and labeling for same-repository and fork PRs, including a title edit.
+- [ ] 4.3 On the next release-please PR, verify `test` and `pr-title` run without manual workflow approval and the PR receives its type label.
 
 ## Workflow follow-up
 

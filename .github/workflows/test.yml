@@ -4,23 +4,44 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'scripts/**'
+              - '.opencode/plugins/oc-session-control/tui.tsx'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - '.github/workflows/test.yml'
       - uses: actions/setup-node@v4
+        if: steps.changes.outputs.code == 'true'
         with:
           node-version: 26.4.0
-      - run: npm ci
-      - run: npm run build
+      - if: steps.changes.outputs.code == 'true'
+        run: npm ci
+      - if: steps.changes.outputs.code == 'true'
+        run: npm run build
       # Dashboard rendering tests require OpenTUI FFI (Node >= 26.4).
-      - run: node --experimental-ffi --test "src/**/*.test.mjs"
-      - run: npm run check
-      - run: npm pack
-      - run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'
+      - if: steps.changes.outputs.code == 'true'
+        run: node --experimental-ffi --test "src/**/*.test.mjs"
+      - if: steps.changes.outputs.code == 'true'
+        run: npm run check
+      - if: steps.changes.outputs.code == 'true'
+        run: npm pack
+      - if: steps.changes.outputs.code == 'true'
+        run: tar -tzf oc-session-control-*.tgz | grep -qx 'package/dist/tui.js'

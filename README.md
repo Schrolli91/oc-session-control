@@ -75,11 +75,11 @@ npm run check
 
 Three workflows under `.github/workflows/`:
 
-- `Tests` (`test.yml`) runs the build, tests, type check and package check as the `test` job on every pull request (same-repository, fork, and release-please) and on pushes to `main` after merges.
-- `PR` (`pr.yml`) validates conventional-commit titles as `pr-title` on pull request events (`opened`, `edited`, `reopened`, `synchronize`), so fixing a title re-validates it. After each `Tests` run for a PR completes, it applies the type label (`feat` → `feature`, `fix` → `bug`, `deps` → `dependencies`, …, plus `breaking-change`). The label job runs from `main` with a write-capable token, never checks out PR code, and resolves the PR using the run's PR association or an API lookup matched by head repository and commit. Because `workflow_run` definitions are read from the default branch, labeling starts only after `pr.yml` lands on `main`.
+- `Tests` (`test.yml`) runs on PRs and pushes to `main`. It builds, tests, type-checks, and packs only when code/build paths change (`src/`, `scripts/`, the plugin shim, package manifests, `tsconfig.json`, or `test.yml`). The required `test` check still succeeds when no matching paths change.
+- `PR` (`pr.yml`) validates conventional-commit titles and applies type labels directly on `pull_request_target` events (`opened`, `edited`, `reopened`, `synchronize`). A repository Actions policy allows this event only for `pr.yml`; the workflow never checks out PR code and grants write permission only to the label job.
 - `Release` (`release.yml`) runs release-please on pushes to `main` and publishes to npm when release-please cuts a release.
 
-Release PRs are opened by `github-actions[bot]`. The repository secret `RELEASE_PLEASE_TOKEN` is configured so their CI runs start like other PRs without manual approval. It is a fine-grained PAT with Contents and Pull requests read/write; renew it before it expires (PATs expire after at most one year). If it is absent or expires, the workflow falls back to `GITHUB_TOKEN`, and the approval requirement may return; if a title edit produces no run, close and reopen the PR to trigger another one. A PR title check runs from the `pull_request` workflow definition, which comes from the PR's merge ref; review changes to workflow files carefully because a PR can modify its own check definition.
+Release PRs are opened by `github-actions[bot]`. The repository secret `RELEASE_PLEASE_TOKEN` is configured so their CI runs start like other PRs without manual approval. It is a fine-grained PAT with Contents and Pull requests read/write; renew it before it expires (PATs expire after at most one year). If it is absent or expires, the workflow falls back to `GITHUB_TOKEN`, and the approval requirement may return. `pr.yml` uses the base-branch workflow definition, so its title check cannot be changed by the PR being checked.
 
 ## License
 
