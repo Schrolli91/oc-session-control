@@ -127,12 +127,21 @@ export function AgentEntry(props) {
   const contextFill = () => row().contextPercentage
   const contextBarFill = () => Math.min(100, Math.max(0, contextFill() ?? 0))
   const contextColor = () => contextFillColor(contextFill(), colors())
+  let sessionClickArmed = false
   return (
     <box
       width="100%"
       flexDirection="column"
       onMouseDown={(event) => {
-        if (!row().isMain && event.button === 0) props.onSessionClick(row().sessionID)
+        sessionClickArmed = !row().isMain && event.button === 0
+      }}
+      onMouseDrag={() => {
+        sessionClickArmed = false
+      }}
+      onMouseUp={(event) => {
+        const navigate = sessionClickArmed && event.button === 0
+        sessionClickArmed = false
+        if (navigate) props.onSessionClick(row().sessionID)
       }}
     >
       <box width="100%" flexDirection="row" justifyContent="space-between">

@@ -18,7 +18,7 @@ const models = [{
   cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
 }]
 
-const makeContext = (session, messages, subagents = []) => {
+const makeContext = (session, messages, subagents = [], actions = {}) => {
   const sessions = new Map([["main", session], ...subagents.map(({ session }) => [session.id, session])])
   const messagesBySession = new Map([["main", messages], ...subagents.map(({ session, messages }) => [session.id, messages])])
   return {
@@ -39,7 +39,10 @@ const makeContext = (session, messages, subagents = []) => {
         provider: { list: () => [], sync: async () => {} },
       },
     },
-    ui: { router: { navigate: () => {} }, dialog: { alert: async () => {} } },
+    ui: {
+      router: { navigate: actions.navigate ?? (() => {}) },
+      dialog: { alert: actions.alert ?? (async () => {}) },
+    },
   }
 }
 
@@ -61,7 +64,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}) => {
+const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}, actions = {}) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -71,7 +74,7 @@ const renderDashboard = async (session, messages, t, subagents = [], updateCheck
   }
   try {
     const setup = await testRender(() => Dashboard({
-      context: makeContext(session, messages, subagents),
+      context: makeContext(session, messages, subagents, actions),
       updateCheck,
       openReleases,
       location,
@@ -203,6 +206,45 @@ test("renders separate cache rates and last calls for the main agent and subagen
     const modelSpans = modelNameSpans(setup, "Claude Sonnet 4.5")
     assert.equal(modelSpans.length, 2)
     assert.ok(modelSpans.every((span) => span.attributes & TextAttributes.UNDERLINE))
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("subagent navigation requires a completed left click", async (t) => {
+  const navigations = []
+  const modelDialogs = []
+  const child = {
+    session: { ...healthySession, id: "child", title: "child-nav-target", cost: 0 },
+    messages: [],
+  }
+  const setup = await renderDashboard(healthySession, [assistantMessage], t, [child], Promise.resolve(null), () => {}, {
+    navigate: (route) => navigations.push(route),
+    alert: (dialog) => modelDialogs.push(dialog),
+  })
+  if (!setup) return
+  try {
+    const lines = setup.captureCharFrame().split("\n")
+    const agentY = lines.findIndex((line) => line.includes("child-nav-target") && line.includes("$0.0000"))
+    assert.notEqual(agentY, -1)
+
+    await setup.mockMouse.click(3, agentY)
+    assert.deepEqual(navigations, [{ type: "session", sessionID: "child" }])
+
+    navigations.length = 0
+    await setup.mockMouse.drag(3, agentY, 7, agentY)
+    await setup.mockMouse.pressDown(3, agentY)
+    await setup.mockMouse.moveTo(59, 59)
+    await setup.mockMouse.release(59, 59)
+    await setup.mockMouse.click(3, agentY, 2)
+    assert.deepEqual(navigations, [])
+
+    const modelY = lines.findIndex((line, index) => index > agentY && line.includes("Model:"))
+    assert.notEqual(modelY, -1)
+    const modelX = lines[modelY].indexOf("Claude Sonnet 4.5")
+    await setup.mockMouse.click(modelX, modelY)
+    assert.deepEqual(navigations, [])
+    assert.equal(modelDialogs.length, 1)
   } finally {
     await setup.dispose()
   }
