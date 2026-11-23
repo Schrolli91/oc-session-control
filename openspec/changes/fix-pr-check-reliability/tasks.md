@@ -6,7 +6,7 @@
 
 ## 2. Workflows
 
-- [ ] 2.1 Require `RELEASE_PLEASE_TOKEN` in `release.yml`, fail clearly if it is missing, and pass only that secret to release-please; verify the workflow fails before the action when the secret is absent.
+- [x] 2.1 Require `RELEASE_PLEASE_TOKEN` in `release.yml`, fail clearly if it is missing, and pass only that secret to release-please; verify no `GITHUB_TOKEN` fallback remains.
 - [x] 2.2 Keep `test.yml` tests-only and run the complete test job on every PR and push to `main`; leave title-only edits to `pr.yml`.
 - [x] 2.3 Make `pr.yml` run directly on `pull_request_target` for `opened`, `edited`, `reopened`, and `synchronize`. Validate the title, then label the PR from event data; grant `pull-requests: write` only to the label job and do not check out PR code.
 - [x] 2.4 Create an active repository Actions policy scoped only to `.github/workflows/pr.yml` that allows `pull_request_target`; verify its saved path and event restrictions.
