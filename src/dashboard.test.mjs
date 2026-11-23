@@ -27,6 +27,7 @@ const makeContext = (session, messages, subagents = [], skills = [], actions = {
     data: {
       session: {
         get: (id) => sessions.get(id),
+        sync: actions.sessionSync ?? (async () => {}),
         status: () => "idle",
         permission: { list: () => [] },
         form: { list: () => [] },
@@ -81,7 +82,7 @@ const renderDashboard = async (session, messages, t, subagents = [], updateCheck
       sessionFamily: () => subagents.map(({ session: child }) => child.id),
       executingSessionIDs: () => new Set(),
       executionResults: () => new Map(),
-      refreshSession: async () => {},
+      refreshSession: options.refreshSession ?? (async () => {}),
       insertSkill: () => {},
       sessionID: "main",
     }), { width: 60, height: 60 })
@@ -144,6 +145,32 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("syncs the root once before refreshing root details and discovered subagents", async (t) => {
+  const child = {
+    session: { ...healthySession, id: "child", title: "child" },
+    messages: [],
+  }
+  const sessionSyncs = []
+  const refreshes = []
+  let complete
+  const refreshedFamily = new Promise((resolve) => { complete = resolve })
+  const setup = await renderDashboard(healthySession, [assistantMessage], t, [child], Promise.resolve(null), () => {}, {
+    sessionSync: async (id) => sessionSyncs.push(id),
+    refreshSession: async (id, options) => {
+      refreshes.push([id, options])
+      if (refreshes.length === 2) complete()
+    },
+  })
+  if (!setup) return
+  try {
+    await refreshedFamily
+    assert.deepEqual(sessionSyncs, ["main"])
+    assert.deepEqual(refreshes, [["main", { session: false }], ["child", undefined]])
   } finally {
     await setup.dispose()
   }
