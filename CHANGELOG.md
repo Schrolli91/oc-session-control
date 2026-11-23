@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Schrolli91/oc-session-control/compare/v0.4.2...v0.5.0) (2026-11-23)
+
+
+### Features
+
+* show update availability in dashboard ([#31](https://github.com/Schrolli91/oc-session-control/issues/31)) ([8f4bbdf](https://github.com/Schrolli91/oc-session-control/commit/8f4bbdf0e48f39916643baa726aa66b50f4a86c8))
+
 ## [0.4.2](https://github.com/Schrolli91/oc-session-control/compare/v0.4.1...v0.4.2) (2026-11-23)
 
 
