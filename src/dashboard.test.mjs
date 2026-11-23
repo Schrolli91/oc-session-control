@@ -18,7 +18,7 @@ const models = [{
   cost: [{ input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }],
 }]
 
-const makeContext = (session, messages, subagents = []) => {
+const makeContext = (session, messages, subagents = [], skills = []) => {
   const sessions = new Map([["main", session], ...subagents.map(({ session }) => [session.id, session])])
   const messagesBySession = new Map([["main", messages], ...subagents.map(({ session, messages }) => [session.id, messages])])
   return {
@@ -34,7 +34,7 @@ const makeContext = (session, messages, subagents = []) => {
       },
       location: {
         agent: { list: () => [], sync: async () => {} },
-        skill: { list: () => [], sync: async () => {} },
+        skill: { list: () => skills, sync: async () => {} },
         model: { list: (target) => (target === location ? models : []), sync: async () => {} },
         provider: { list: () => [], sync: async () => {} },
       },
@@ -61,7 +61,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}) => {
+const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}, skills = []) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -71,7 +71,7 @@ const renderDashboard = async (session, messages, t, subagents = [], updateCheck
   }
   try {
     const setup = await testRender(() => Dashboard({
-      context: makeContext(session, messages, subagents),
+      context: makeContext(session, messages, subagents, skills),
       updateCheck,
       openReleases,
       location,
@@ -203,6 +203,39 @@ test("renders separate cache rates and last calls for the main agent and subagen
     const modelSpans = modelNameSpans(setup, "Claude Sonnet 4.5")
     assert.equal(modelSpans.length, 2)
     assert.ok(modelSpans.every((span) => span.attributes & TextAttributes.UNDERLINE))
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("truncates agent, cache, and skill labels without splitting emoji sequences", async (t) => {
+  const label = `${"👩‍💻".repeat(30)}xy`
+  const child = {
+    session: {
+      id: "child",
+      title: label,
+      model: modelRef,
+      cost: 0,
+      location,
+      tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 500, write: 0 } },
+      permissions: [],
+    },
+    messages: [assistantMessage],
+  }
+  const loadedSkill = { type: "skill", skill: "long-skill" }
+  const setup = await renderDashboard(
+    healthySession,
+    [assistantMessage, loadedSkill],
+    t,
+    [child],
+    Promise.resolve(null),
+    () => {},
+    [{ id: "long-skill", name: label, description: "Long label", content: label }],
+  )
+  if (!setup) return
+  try {
+    const frame = setup.captureCharFrame()
+    assert.ok((frame.match(/👩‍💻[^…\n]*…/g) ?? []).length >= 3, frame)
   } finally {
     await setup.dispose()
   }

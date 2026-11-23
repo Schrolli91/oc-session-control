@@ -99,6 +99,16 @@ test("truncates agent titles to the available single-line width", () => {
   assert.equal(truncateAgentTitle("title", 0), "")
 })
 
+test("truncates agent titles by terminal-cell width without splitting graphemes", () => {
+  assert.equal(truncateAgentTitle("界界", 3), "界…")
+  assert.equal(truncateAgentTitle("e\u0301界", 2), "e\u0301…")
+  assert.equal(truncateAgentTitle("👩‍💻xy", 3), "👩‍💻…")
+  assert.equal(truncateAgentTitle("main", 4), "main")
+  assert.equal(truncateAgentTitle("long subagent title", 7), "long s…")
+  assert.equal(truncateAgentTitle("title", Number.NaN), "")
+  assert.equal(truncateAgentTitle("title", -1), "")
+})
+
 test("matches usage updates and newly forked sessions to the active family", () => {
   assert.deepEqual(
     familyEventSessionIDs(["main", "child"], { data: { sessionID: "child" } }),
