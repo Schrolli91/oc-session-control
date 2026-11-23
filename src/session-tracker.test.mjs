@@ -239,6 +239,33 @@ test("compaction refreshes history when it overlaps an execution refresh", async
   tracker.dispose()
 })
 
+test("compaction still refreshes history when the overlapping execution refresh fails", async () => {
+  const { context, handlers, calls } = makeContext()
+  context.data.session.message.list = () => [{}]
+  let rejectLightRefresh
+  let resolveHistoryRefresh
+  const historyRefresh = new Promise((resolve) => { resolveHistoryRefresh = resolve })
+  let sessionSyncs = 0
+  context.data.session.sync = () => {
+    sessionSyncs++
+    if (sessionSyncs === 1) return new Promise((_, reject) => { rejectLightRefresh = reject })
+    if (sessionSyncs === 2) resolveHistoryRefresh()
+    return Promise.resolve()
+  }
+  const tracker = createSessionTracker(context, context.location)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+  handlers.get("session.execution.started")({ data: { sessionID: "session-1" } })
+  handlers.get("session.compaction.ended")({ data: { sessionID: "session-1" } })
+  rejectLightRefresh(new Error("temporary session sync failure"))
+  await historyRefresh
+  await flush()
+
+  assert.equal(calls.get("message.invalidate"), 1)
+  assert.equal(calls.get("message.sync"), 1)
+  tracker.dispose()
+})
+
 test("retains last-known render data until a replacement arrives", () => {
   const { context } = makeContext()
   let session = { title: "Known title" }

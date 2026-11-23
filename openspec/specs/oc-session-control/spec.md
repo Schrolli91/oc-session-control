@@ -233,6 +233,21 @@ The dashboard MUST read every message page a session's host still serves, not on
 - **WHEN** the host has compacted a session and no longer returns its older messages
 - **THEN** the dashboard reads every message the host still serves and does not treat the first loaded page as the whole transcript
 
+### Requirement: Avoid redundant history reloads during execution updates
+The dashboard MUST refresh session values on ordinary execution lifecycle events without reloading an already available transcript. It MUST still load history when none is available and MUST apply explicit history-changing updates, including compaction, even when they overlap a lightweight refresh.
+
+#### Scenario: Execution update with loaded transcript
+- **WHEN** an ordinary execution lifecycle event arrives for a session with loaded messages
+- **THEN** the dashboard refreshes session values without invalidating, syncing, or backfilling the message history
+
+#### Scenario: Execution update without loaded transcript
+- **WHEN** an ordinary execution lifecycle event arrives for a session with no loaded messages
+- **THEN** the dashboard loads the available message history so message-derived values can be computed
+
+#### Scenario: Compaction overlaps a lightweight refresh
+- **WHEN** a compaction event requests a history update while a lightweight refresh for the same session is in progress
+- **THEN** the dashboard completes a history-changing refresh and updates its message-derived values from the available transcript
+
 ### Requirement: Estimate cache savings
 The dashboard MUST estimate cache savings by pricing each assistant call’s cache-read tokens with that call’s own model’s applicable prices — the context price tier when the call’s window exceeds it, minus the cache-write premium, clamped at zero — then label the indented gray estimate row “Saved (est.):”. When part of the family’s cache reads cannot be priced, the row MUST report that as `(partial)`; when no cache read can be priced, it MUST be marked unavailable.
 

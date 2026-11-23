@@ -110,7 +110,7 @@ export function createSessionTracker(context, location) {
       // A history-changing request must not be swallowed by a lighter refresh that
       // is already running, or compaction/revert would keep a stale transcript.
       if (!refreshMessages || pending.messages) return pending.promise
-      return pending.promise.then(() => refreshSession(id, { messages: true }))
+      return pending.promise.catch(() => {}).then(() => refreshSession(id, { messages: true }))
     }
     const work = (async () => {
       context.data.session.invalidate(id)
