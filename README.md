@@ -24,7 +24,7 @@ Restart OpenCode afterwards. If you installed the plugin manually, delete the co
 
 ## Features
 
-The sidebar updates with the current session and has these sections:
+The sidebar updates with the current session and has these sections. A “Session Overview” divider is always shown; when a newer GitHub Release is available, a blue up-arrow icon and underlined white notice show the current and latest versions. Click it to open the GitHub Releases page and browse all changelogs in your default browser.
 
 - Session usage: family total in the heading, main agent and subagent cost rows when subagents exist, and estimated cache savings (`Saved (est.)`).
 - Session Total: combined input, cache reads and writes, output, and reasoning tokens, with bars per group. It is a token count, not context-window usage.
@@ -37,7 +37,7 @@ Click a section heading to collapse or expand it. The dashboard is mouse-only: i
 
 Skill insertion only works when an OpenCode prompt editor is already focused; otherwise the click does nothing. OpenCode 2.3.2 has no supported prompt-insertion or targeted-picker API for this path, so the internal picker and frame-gate flow is unsupported and unverified.
 
-The plugin reads data through OpenCode host APIs and makes no network requests of its own.
+The plugin reads data through OpenCode host APIs. It also makes one asynchronous request to GitHub's public Releases API per plugin setup to check for a newer release; network failures do not delay or disable the dashboard.
 
 ## Development
 

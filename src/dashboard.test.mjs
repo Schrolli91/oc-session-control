@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { TextAttributes } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 
 // Rendert die echte Dashboard-Komponente headless (@opentui/core/testing) und
@@ -60,7 +61,7 @@ const assistantMessage = {
   },
 }
 
-const renderDashboard = async (session, messages, t, subagents = []) => {
+const renderDashboard = async (session, messages, t, subagents = [], updateCheck = Promise.resolve(null), openReleases = () => {}) => {
   let Dashboard
   try {
     ({ Dashboard } = await import("../dist/dashboard.js"))
@@ -71,6 +72,8 @@ const renderDashboard = async (session, messages, t, subagents = []) => {
   try {
     const setup = await testRender(() => Dashboard({
       context: makeContext(session, messages, subagents),
+      updateCheck,
+      openReleases,
       location,
       sessionFamily: () => subagents.map(({ session: child }) => child.id),
       executingSessionIDs: () => new Set(),
@@ -93,7 +96,11 @@ test("renders the session usage, totals, and cache sections", async (t) => {
   if (!setup) return
   try {
     const frame = setup.captureCharFrame()
+    assert.doesNotMatch(frame, /Update available/)
+    assert.match(frame, /Session Overview/)
     assert.match(frame, /Session usage/)
+    assert.match(frame.split("\n")[0], /Session Overview/)
+    assert.match(frame.split("\n")[1], /Session usage/)
     assert.match(frame, /\$1\.2345/)
     // Ohne Subagenten gibt es keine Kostenzeile — der Wert steht nur im Heading.
     assert.doesNotMatch(frame, /Mainagent:/)
@@ -106,6 +113,44 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("renders without waiting for the update check and shows the notice when it resolves", async (t) => {
+  let resolveUpdateCheck
+  let releasePageOpened = false
+  const updateCheck = new Promise((resolve) => { resolveUpdateCheck = resolve })
+  const setup = await renderDashboard(healthySession, [assistantMessage], t, [], updateCheck, () => { releasePageOpened = true })
+  if (!setup) return
+  try {
+    const pendingFrame = setup.captureCharFrame()
+    assert.match(pendingFrame, /Session usage/)
+    assert.doesNotMatch(pendingFrame, /Update available/)
+
+    resolveUpdateCheck({ current: "1.0.0", latest: "1.0.1" })
+    await Promise.resolve()
+    await setup.renderOnce()
+    await setup.flush()
+    const frame = setup.captureCharFrame()
+    assert.match(frame, /↑ Update available +1\.0\.0 → 1\.0\.1/)
+    assert.match(frame, /Session Overview/)
+    assert.equal(frame.split("\n")[1].trim(), "")
+    assert.match(frame.split("\n")[2], /Session Overview/)
+    assert.ok(frame.indexOf("↑ Update available") < frame.indexOf("Session usage"))
+    assert.ok(frame.split("\n")[0].endsWith("1.0.1"))
+    const spans = setup.captureSpans().lines[0].spans
+    assert.deepEqual(spans.find((span) => span.text.includes("↑")).fg.toInts().slice(0, 3), [88, 166, 255])
+    const updateLabel = spans.find((span) => span.text.includes("Update available"))
+    assert.equal(updateLabel.text, "Update available")
+    assert.deepEqual(updateLabel.fg.toInts().slice(0, 3), [255, 255, 255])
+    assert.ok(updateLabel.attributes & TextAttributes.UNDERLINE)
+    assert.deepEqual(spans.find((span) => span.text.includes("1.0.0")).fg.toInts().slice(0, 3), [255, 255, 255])
+    assert.deepEqual(spans.find((span) => span.text.includes("→")).fg.toInts().slice(0, 3), [139, 148, 158])
+    assert.deepEqual(spans.find((span) => span.text.includes("1.0.1")).fg.toInts().slice(0, 3), [255, 255, 255])
+    await setup.mockMouse.click(2, 0)
+    assert.equal(releasePageOpened, true)
   } finally {
     await setup.dispose()
   }
