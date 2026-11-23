@@ -33,7 +33,7 @@ Click a section heading to collapse or expand it. The dashboard is mouse-only an
 
 ## Development
 
-Start `opencode` inside this repository to load the plugin from `.opencode/plugins/`.
+When you start `opencode` from this repository, OpenCode automatically discovers and loads the local plugin from `.opencode/plugins/`.
 
 Run the checks with:
 
