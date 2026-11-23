@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { TextAttributes } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 
 // Rendert die echte Dashboard-Komponente headless (@opentui/core/testing) und
@@ -88,6 +89,11 @@ const renderDashboard = async (session, messages, t, subagents = []) => {
   }
 }
 
+const modelNameSpans = (setup, name) => setup.captureSpans().lines
+  .filter((line) => line.spans.some((span) => span.text.includes("Model:")))
+  .flatMap((line) => line.spans)
+  .filter((span) => span.text.includes(name))
+
 test("renders the session usage, totals, and cache sections", async (t) => {
   const setup = await renderDashboard(healthySession, [assistantMessage], t)
   if (!setup) return
@@ -150,6 +156,22 @@ test("renders separate cache rates and last calls for the main agent and subagen
     assert.match(frame, /Last call:\s+—\s+99\.98%/)
     assert.match(frame, /Last call:\s+↑75\.0%\s+75\.00%/)
     assert.match(frame, /TTL:\s+●\s+1m 0?s/)
+    const modelSpans = modelNameSpans(setup, "Claude Sonnet 4.5")
+    assert.equal(modelSpans.length, 2)
+    assert.ok(modelSpans.every((span) => span.attributes & TextAttributes.UNDERLINE))
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("does not underline an unavailable model label", async (t) => {
+  const session = { ...healthySession, model: undefined }
+  const setup = await renderDashboard(session, [], t)
+  if (!setup) return
+  try {
+    const modelSpans = modelNameSpans(setup, "unavailable")
+    assert.equal(modelSpans.length, 1)
+    assert.equal(modelSpans[0].attributes & TextAttributes.UNDERLINE, 0)
   } finally {
     await setup.dispose()
   }
