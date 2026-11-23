@@ -19,7 +19,7 @@ jobs:
           node-version: 26.4.0
       - run: npm ci
       - run: npm run build
-      # Dashboard-Render-Tests benötigen OpenTUI-FFI (Node >= 26.4).
+      # Dashboard rendering tests require OpenTUI FFI (Node >= 26.4).
       - run: node --experimental-ffi --test "src/**/*.test.mjs"
       - run: npm run check
       - run: npm pack
