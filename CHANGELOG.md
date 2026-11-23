@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Schrolli91/oc-session-control/compare/v0.4.0...v0.4.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* avoid redundant transcript refreshes ([#26](https://github.com/Schrolli91/oc-session-control/issues/26)) ([775cfe8](https://github.com/Schrolli91/oc-session-control/commit/775cfe8a1b588e079d239b2bc9c182bb67c947f4))
+
 ## [0.4.0](https://github.com/Schrolli91/oc-session-control/compare/v0.3.0...v0.4.0) (2026-11-23)
 
 
