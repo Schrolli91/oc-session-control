@@ -332,7 +332,7 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 
 #### Scenario: Truncate long subagent labels before the cache rate
 - **WHEN** a subagent label is too long to fit before its right-aligned cache rate
-- **THEN** the subagent name is shortened on one line with an ellipsis and leaves at least one blank character before the right-aligned rate, which retains its `%` suffix
+- **THEN** the subagent name is shortened on one line with a trailing ellipsis and leaves at least one blank character before the right-aligned rate, which retains its `%` suffix
 
 #### Scenario: Cache details are expanded by default
 - **WHEN** the Cache overview is first displayed
