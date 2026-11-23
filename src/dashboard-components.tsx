@@ -6,6 +6,25 @@ import { usageBarWidths } from "./usage.mjs"
 
 const statusIcons = { question: "?", complete: "✓", aborted: "●", error: "×", idle: "●" }
 
+export function clickOnRelease(callback, stopPropagation = false) {
+  let armed = false
+  return {
+    onMouseDown(event) {
+      if (stopPropagation) event.stopPropagation()
+      armed = event.button === 0
+    },
+    onMouseDrag() {
+      armed = false
+    },
+    onMouseUp(event) {
+      if (stopPropagation) event.stopPropagation()
+      const click = armed && event.button === 0
+      armed = false
+      if (click) callback(event)
+    },
+  }
+}
+
 function BarLegend(props) {
   return (
     <box width="100%" flexDirection="row" flexWrap="wrap">
@@ -34,18 +53,13 @@ export function UsageStat(props) {
 }
 
 export function CollapsibleHeader(props) {
+  const toggleClick = clickOnRelease(props.onToggle, true)
   return (
     <box
       width="100%"
       flexDirection="row"
       justifyContent="space-between"
-      onMouseDown={(event) => {
-        event.stopPropagation()
-      }}
-      onMouseUp={(event) => {
-        event.stopPropagation()
-        if (event.button === 0) props.onToggle()
-      }}
+      {...toggleClick}
     >
       <box flexDirection="row" flexBasis={0} flexGrow={1} minWidth={0} overflow="hidden">
         <text fg={props.colors().text.muted}>{props.collapsed ? "▸ " : "▾ "}</text>
@@ -127,22 +141,17 @@ export function AgentEntry(props) {
   const contextFill = () => row().contextPercentage
   const contextBarFill = () => Math.min(100, Math.max(0, contextFill() ?? 0))
   const contextColor = () => contextFillColor(contextFill(), colors())
-  let sessionClickArmed = false
+  const sessionClick = clickOnRelease(() => {
+    if (!row().isMain) props.onSessionClick(row().sessionID)
+  })
+  const modelClick = clickOnRelease(() => {
+    if (row().modelRef) props.onModelClick(row().modelInfo, row().modelRef, row().sessionID)
+  }, true)
   return (
     <box
       width="100%"
       flexDirection="column"
-      onMouseDown={(event) => {
-        sessionClickArmed = !row().isMain && event.button === 0
-      }}
-      onMouseDrag={() => {
-        sessionClickArmed = false
-      }}
-      onMouseUp={(event) => {
-        const navigate = sessionClickArmed && event.button === 0
-        sessionClickArmed = false
-        if (navigate) props.onSessionClick(row().sessionID)
-      }}
+      {...sessionClick}
     >
       <box width="100%" flexDirection="row" justifyContent="space-between">
         <box flexDirection="row" flexBasis={0} flexGrow={1} minWidth={0}>
@@ -174,13 +183,7 @@ export function AgentEntry(props) {
           fg={colors().text.muted}
           wrapMode="none"
           attributes={row().modelRef ? TextAttributes.UNDERLINE : TextAttributes.NONE}
-          onMouseDown={(event) => event.stopPropagation()}
-          onMouseUp={(event) => {
-            event.stopPropagation()
-            if (event.button === 0 && row().modelRef) {
-              props.onModelClick(row().modelInfo, row().modelRef, row().sessionID)
-            }
-          }}
+          {...modelClick}
         >{row().modelName}</text>
       </box>
       <box width="100%" flexDirection="row" justifyContent="space-between" paddingLeft={2}>

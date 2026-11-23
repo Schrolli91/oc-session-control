@@ -99,6 +99,29 @@ const modelNameSpans = (setup, name) => setup.captureSpans().lines
   .flatMap((line) => line.spans)
   .filter((span) => span.text.includes(name))
 
+test("click handlers ignore drags and non-left clicks", async (t) => {
+  let clickOnRelease
+  try {
+    ({ clickOnRelease } = await import("../dist/dashboard-components.js"))
+  } catch {
+    t.skip("dist/ fehlt — zuerst `npm run build` ausführen")
+    return
+  }
+  let clicks = 0
+  const handlers = clickOnRelease(() => clicks++)
+  const event = (button) => ({ button, stopPropagation() {} })
+
+  handlers.onMouseDown(event(0))
+  handlers.onMouseUp(event(0))
+  handlers.onMouseDown(event(0))
+  handlers.onMouseDrag()
+  handlers.onMouseUp(event(0))
+  handlers.onMouseDown(event(2))
+  handlers.onMouseUp(event(2))
+
+  assert.equal(clicks, 1)
+})
+
 test("renders the session usage, totals, and cache sections", async (t) => {
   const setup = await renderDashboard(healthySession, [assistantMessage], t)
   if (!setup) return
@@ -157,6 +180,8 @@ test("renders without waiting for the update check and shows the notice when it 
     assert.deepEqual(spans.find((span) => span.text.includes("1.0.0")).fg.toInts().slice(0, 3), [255, 255, 255])
     assert.deepEqual(spans.find((span) => span.text.includes("→")).fg.toInts().slice(0, 3), [139, 148, 158])
     assert.deepEqual(spans.find((span) => span.text.includes("1.0.1")).fg.toInts().slice(0, 3), [255, 255, 255])
+    await setup.mockMouse.drag(2, 0, 10, 0)
+    assert.equal(releasePageOpened, false)
     await setup.mockMouse.click(2, 0)
     assert.equal(releasePageOpened, true)
   } finally {
@@ -242,6 +267,8 @@ test("subagent navigation requires a completed left click", async (t) => {
     const modelY = lines.findIndex((line, index) => index > agentY && line.includes("Model:"))
     assert.notEqual(modelY, -1)
     const modelX = lines[modelY].indexOf("Claude Sonnet 4.5")
+    await setup.mockMouse.drag(modelX, modelY, modelX + 4, modelY)
+    assert.equal(modelDialogs.length, 0)
     await setup.mockMouse.click(modelX, modelY)
     assert.deepEqual(navigations, [])
     assert.equal(modelDialogs.length, 1)

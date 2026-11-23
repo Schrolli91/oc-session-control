@@ -2,20 +2,20 @@
 
 ## Context
 
-`AgentEntry` currently navigates from its row-level `onMouseDown`. Model-name and loaded-skill elements already stop mouse-down and mouse-up propagation so their own actions remain separate.
+Dashboard controls run actions from mouse-up handlers, but without a shared check that the left-button press began on the same control and was not dragged. This can trigger actions unintentionally during pointer movement.
 
 ## Goals / Non-Goals
 
-**Goals:** Navigate only after an uninterrupted left-button press and release on a subagent row. Keep model-detail clicks isolated.
+**Goals:** Run dashboard actions only after an uninterrupted left-button press and release on the same control. Apply this to subagent navigation, model details, the update hint, skill insertion, and collapsible headers; keep nested actions isolated from their parent row.
 
 **Non-Goals:** Change main-agent interactions, keyboard behavior, or dashboard layout.
 
 ## Decisions
 
-- Arm row navigation on left-button down and perform it on left-button up. Cancel the armed action when the pointer moves, so text selection and drags do not count as clicks. A release outside the row cannot invoke its release handler.
-- Keep nested model and skill event propagation guards. Model details continue to handle their own left-button release without arming row navigation.
-- Test through the existing headless `Dashboard` render and mouse mock rather than extracting a separate event helper; this verifies actual row routing and nested interactions.
+- Use one `clickOnRelease` handler for mouse-down arming, drag cancellation, and left-button release. An action runs only if the release is on the control where the press began and no drag occurred.
+- Stop propagation for nested controls so their actions do not arm or invoke the containing agent row.
+- Unit-test the shared handler and retain headless Dashboard mouse tests for navigation, model details, and the update hint.
 
 ## Risks / Trade-offs
 
-- The TUI mouse mock may expose limited drag controls. Use the smallest supported sequence of mouse down, move, and up events; retain direct coverage for the completed click if drag simulation is unavailable.
+- Dashboard rendering tests require OpenTUI FFI; the shared handler unit test can run without the native renderer.

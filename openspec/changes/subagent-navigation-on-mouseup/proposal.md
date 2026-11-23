@@ -2,13 +2,14 @@
 
 ## Why
 
-Subagent rows currently navigate on mouse-down, so a press that becomes a drag or text selection can open a session unintentionally. Aligning navigation with a completed left click makes row interaction predictable while preserving nested model actions.
+Clickable dashboard actions currently run on mouse-up even when the press began elsewhere or became a drag. Requiring a completed, uninterrupted left click makes navigation and other actions predictable.
 
 ## What Changes
 
-- Trigger subagent navigation on left-button release rather than press.
-- Keep nested model clicks isolated from row navigation.
-- Add an interaction test for completed clicks and canceled press/drag behavior.
+- Trigger dashboard actions only after an uninterrupted left-button press and release on the same control.
+- Apply the behavior to subagent navigation, model details, the update hint, skill insertion, and collapsible headers.
+- Keep nested actions isolated from their containing agent row.
+- Test completed clicks, drags, and non-left clicks.
 
 ## Capabilities
 
@@ -18,10 +19,10 @@ None.
 
 ### Modified Capabilities
 
-- `oc-session-control`: Define completed left-click behavior for subagent navigation and preserve nested model interactions.
+- `oc-session-control`: Define completed left-click behavior for interactive dashboard controls and preserve nested interactions.
 
 ## Impact
 
-- `src/dashboard-components.tsx` row mouse handlers.
-- `src/dashboard.test.mjs` headless mouse interaction coverage.
-- `openspec/specs/oc-session-control/spec.md` subagent interaction requirement.
+- `src/dashboard-components.tsx` and `src/dashboard.tsx` mouse handlers.
+- `src/dashboard.test.mjs` click-handler and dashboard interaction coverage.
+- Interactive controls in the session dashboard.
