@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.6.0](https://github.com/Schrolli91/oc-session-control/compare/v0.5.1...v0.6.0) (2026-11-24)
+
+
+### Features
+
+* **cache:** compact Last Hit details ([#61](https://github.com/Schrolli91/oc-session-control/issues/61)) ([64fea98](https://github.com/Schrolli91/oc-session-control/commit/64fea986f87bbf484df1e11e4215c57a4c51e807))
+
+
+### Documentation
+
+* add repository agent guidelines ([#56](https://github.com/Schrolli91/oc-session-control/issues/56)) ([419c1eb](https://github.com/Schrolli91/oc-session-control/commit/419c1eb42ae2b1d71341a812df966a461d152481))
+
+
+### CI
+
+* pin GitHub Actions and configure Dependabot ([#55](https://github.com/Schrolli91/oc-session-control/issues/55)) ([f20bcf0](https://github.com/Schrolli91/oc-session-control/commit/f20bcf0eb57f9601bfe9b82c57ed8de08b62b360))
+
+
+### Miscellaneous
+
+* **deps:** bump actions/checkout from 4.2.2 to 7.0.1 ([#58](https://github.com/Schrolli91/oc-session-control/issues/58)) ([f55d0b1](https://github.com/Schrolli91/oc-session-control/commit/f55d0b1f17839bb1fc140761576eaf8db0cd95ae))
+* **deps:** bump actions/setup-node from 4.4.0 to 7.1.0 ([#59](https://github.com/Schrolli91/oc-session-control/issues/59)) ([33435c9](https://github.com/Schrolli91/oc-session-control/commit/33435c9296ed56854a746d8239758bf38050cf20))
+* **deps:** bump googleapis/release-please-action from 4.4.1 to 5.0.0 ([#60](https://github.com/Schrolli91/oc-session-control/issues/60)) ([6e20727](https://github.com/Schrolli91/oc-session-control/commit/6e20727072766a5b5a24f111382eb157cd7c0c98))
+
 ## [0.5.1](https://github.com/Schrolli91/oc-session-control/compare/v0.5.0...v0.5.1) (2026-11-23)
 
 
