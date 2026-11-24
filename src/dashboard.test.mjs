@@ -142,7 +142,8 @@ test("renders the session usage, totals, and cache sections", async (t) => {
     assert.match(frame, /Reasoning\s+5 tok/)
     assert.match(frame, /Cache\s+99\.9\d%/)
     assert.doesNotMatch(frame, /◆ Mainagent\s+99\.99%/)
-    assert.match(frame, /Last call:\s+—\s+99\.98%/)
+    assert.match(frame, /Last Hit \(● (?:\d+m )?\d+s\)\s+—\s+99\.98%/)
+    assert.doesNotMatch(frame, /TTL:/)
     assert.match(frame, /Claude Sonnet 4\.5/)
     assert.match(frame, /Context: 250\.1%\s+500\.1k \/ 200K tok/)
   } finally {
@@ -216,7 +217,7 @@ test("renders without waiting for the update check and shows the notice when it 
   }
 })
 
-test("renders separate cache rates and last calls for the main agent and subagent", async (t) => {
+test("renders cache rates and combined Last Hit details for the main agent and subagent", async (t) => {
   const child = {
     session: {
       id: "child",
@@ -252,12 +253,55 @@ test("renders separate cache rates and last calls for the main agent and subagen
     assert.match(frame, /↳ Subagents:/)
     assert.match(frame, /◆ Mainagent/)
     assert.match(frame, /↳ explore[^…\n]*… +50\.00%/)
-    assert.match(frame, /Last call:\s+—\s+99\.98%/)
-    assert.match(frame, /Last call:\s+↑75\.0%\s+75\.00%/)
-    assert.match(frame, /TTL:\s+●\s+1m 0?s/)
+    assert.match(frame, /Last Hit \(● (?:\d+m )?\d+s\)\s+—\s+99\.98%/)
+    assert.match(frame, /Last Hit \(● (?:\d+m )?\d+s\)\s+↑75\.0%\s+75\.00%/)
+    assert.doesNotMatch(frame, /TTL:/)
     const modelSpans = modelNameSpans(setup, "Claude Sonnet 4.5")
     assert.equal(modelSpans.length, 2)
     assert.ok(modelSpans.every((span) => span.attributes & TextAttributes.UNDERLINE))
+  } finally {
+    await setup.dispose()
+  }
+})
+
+test("renders an unavailable Last Hit age and advances valid ages live", async (t) => {
+  const liveMessage = {
+    ...assistantMessage,
+    info: {
+      ...assistantMessage.info,
+      time: { completed: Date.now() },
+    },
+  }
+  const untimed = {
+    session: {
+      id: "untimed",
+      title: "untimed",
+      model: modelRef,
+      cost: 0,
+      location,
+      tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 500, write: 0 } },
+      permissions: [],
+    },
+    messages: [{ info: {
+      type: "assistant",
+      model: modelRef,
+      tokens: { input: 25, cache: { read: 75, write: 0 } },
+    } }],
+  }
+  const setup = await renderDashboard(healthySession, [liveMessage], t, [untimed])
+  if (!setup) return
+  try {
+    const ageIn = (frame) => frame.match(/Last Hit \(● ([^)]+)\)\s+—\s+99\.98%/)?.[1]
+    const initialFrame = setup.captureCharFrame()
+    const initialAge = ageIn(initialFrame)
+    assert.ok(initialAge)
+    assert.match(initialFrame, /Last Hit \(● —\)\s+—\s+75\.00%/)
+    assert.doesNotMatch(initialFrame, /TTL:/)
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100))
+    await setup.renderOnce()
+    await setup.flush()
+    assert.notEqual(ageIn(setup.captureCharFrame()), initialAge)
   } finally {
     await setup.dispose()
   }

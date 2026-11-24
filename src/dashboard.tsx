@@ -349,22 +349,17 @@ export function Dashboard(props) {
                           </text>
                         </box>
                       )}
-                      <box width="100%" flexDirection="column">
-                        <box width="100%" flexDirection="row" justifyContent="space-between">
-                          <text fg={colors().text.muted}>Last call:</text>
-                          <box flexDirection="row">
-                            <text fg={colors().text.muted}>{formatPercentageChange(stats()?.lastCall?.change)} </text>
-                            <text fg={colors().text.muted}>{formatPercentage(stats()?.lastCall?.rate)}</text>
-                          </box>
+                      <box width="100%" flexDirection="row" justifyContent="space-between">
+                        <box flexDirection="row">
+                          <text fg={colors().text.muted}>Last Hit (</text>
+                          <text fg={Number.isFinite(timestamp())
+                            ? colors().cacheTTL[cacheTtlStatus(age())]
+                            : colors().text.muted}>●</text>
+                          <text fg={colors().text.muted}> {formatElapsed(age())})</text>
                         </box>
-                        <box width="100%" flexDirection="row" justifyContent="space-between">
-                          <text fg={colors().text.muted}>TTL:</text>
-                          <box flexDirection="row">
-                            <text fg={Number.isFinite(timestamp())
-                              ? colors().cacheTTL[cacheTtlStatus(age())]
-                              : colors().text.muted}>●</text>
-                            <text fg={colors().text.muted}> {formatElapsed(age())}</text>
-                          </box>
+                        <box flexDirection="row">
+                          <text fg={colors().text.muted}>{formatPercentageChange(stats()?.lastCall?.change)} </text>
+                          <text fg={colors().text.muted}>{formatPercentage(stats()?.lastCall?.rate)}</text>
                         </box>
                       </box>
                     </box>

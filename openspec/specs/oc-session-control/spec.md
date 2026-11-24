@@ -320,7 +320,7 @@ The dashboard MUST estimate cache savings by pricing each assistant call’s cac
 - **THEN** that call contributes zero to the estimate instead of a negative amount
 
 ### Requirement: Show cache hit rates and the latest call
-The dashboard MUST show the agent family's cumulative cache hit rate in the “Cache” heading and show a separate hit rate and latest-call statistics for the main session and each known subagent. The family rate MUST be calculated from the family's summed counters, not as an average of agent rates. The “Cache” section MUST remain clickable, expanded by default, and indent the whole agent breakdown once under the “Cache” heading; an agent's “Last call” and “TTL” rows MUST align with its name and rate. A subtle divider labeled “◆ Mainagent” MUST continue to separate Cache from the main entry.
+The dashboard MUST show the agent family's cumulative cache hit rate in the “Cache” heading and show a separate hit rate and latest-call statistics for the main session and each known subagent. The family rate MUST be calculated from the family's summed counters, not as an average of agent rates. The “Cache” section MUST remain clickable, expanded by default, and indent the whole agent breakdown once under the “Cache” heading; each agent's single “Last Hit” row MUST align with its name and rate, showing the live age indicator inline on the left and latest-call statistics right-aligned. A subtle divider labeled “◆ Mainagent” MUST continue to separate Cache from the main entry.
 
 #### Scenario: Show agent-family cache rates
 - **WHEN** cumulative token counters and at least one assistant call are available
@@ -332,7 +332,7 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 
 #### Scenario: Omit the redundant main-agent rate without subagents
 - **WHEN** the main session has no known subagents
-- **THEN** the Cache heading shows the main session's total rate without a duplicate `◆ Mainagent` rate row, while its “Last call” and “TTL” rows remain visible
+- **THEN** the Cache heading shows the main session's total rate without a duplicate `◆ Mainagent` rate row, while its combined “Last Hit” row with live age indicator remains visible
 
 #### Scenario: Cache writes are not hits
 - **WHEN** the agent family reports cache writes greater than zero
@@ -340,11 +340,11 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 
 #### Scenario: Show each agent's latest call and change
 - **WHEN** an agent has assistant calls with cache usage data
-- **THEN** its “Last call” row shows the latest call's rate and its directional change from the previous call in that same session; rates are truncated to two decimal places and changes are rounded to one decimal place
+- **THEN** its “Last Hit” row shows the latest call's rate and its directional change from the previous call in that same session; rates are truncated to two decimal places and changes are rounded to one decimal place
 
 #### Scenario: Keep cache text colors distinct by role
 - **WHEN** the Cache section and agent details are displayed
-- **THEN** the “Cache” label and family rate, `◆ Mainagent` label, and subagent arrows and names use the normal foreground (white); each agent's hit rate uses muted gray; every part of “Last call” uses muted gray; the “TTL” label and elapsed time use muted gray, with only its status dot colored
+- **THEN** the “Cache” label and family rate, `◆ Mainagent` label, and subagent arrows and names use the normal foreground (white); each agent's hit rate uses muted gray; the “Last Hit” label, live timer, change, and rate use muted gray, except the age dot, which uses the TTL status color
 
 #### Scenario: Truncate long subagent labels before the cache rate
 - **WHEN** a subagent label is too long to fit before its right-aligned cache rate
@@ -352,7 +352,7 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 
 #### Scenario: Cache details are expanded by default
 - **WHEN** the Cache overview is first displayed
-- **THEN** the `◆ Mainagent` row, each subagent row prefixed by a white `↳`, and their “Last call” and “TTL” rows are indented once to align under the Cache heading, with the detail rows aligned with that agent's name and rate
+- **THEN** the `◆ Mainagent` row, each subagent row prefixed by a white `↳`, and each agent's combined “Last Hit” row with its live age indicator and latest-call statistics are indented once to align under the Cache heading, with the detail rows aligned with that agent's name and rate
 
 #### Scenario: Collapse and expand Cache details
 - **WHEN** the user clicks “Cache”
@@ -371,19 +371,19 @@ The dashboard MUST show the agent family's cumulative cache hit rate in the “C
 - **THEN** the dashboard shows it as unavailable instead of treating missing or invalid values as zero
 
 ### Requirement: Show cache TTL live
-The Cache section MUST show, for the main session and each known subagent, elapsed time since that session's latest assistant call as a running timer with a colored dot: green before three minutes, yellow from three to under five minutes, and red from five minutes onward. Each TTL MUST appear as an indented detail under its agent only when the Cache section is expanded.
+The Cache section MUST show, for the main session and each known subagent, elapsed time since that session's latest assistant call as a running timer with a colored dot: green before three minutes, yellow from three to under five minutes, and red from five minutes onward. The timer and dot MUST appear inline in that agent's “Last Hit” row, and MUST be shown only when the Cache section is expanded.
 
 #### Scenario: Update TTL color based on the latest call
 - **WHEN** time passes after the latest assistant call in one or more sessions while the Cache section is expanded
-- **THEN** each timer continues from its own session's latest call and its dot changes color at the three- and five-minute thresholds
+- **THEN** each inline timer continues from its own session's latest call and its dot changes color at the three- and five-minute thresholds
 
 #### Scenario: Update each agent's TTL independently
 - **WHEN** time passes after the latest assistant call in one or more sessions while Cache is expanded
-- **THEN** each agent's timer advances from its own latest assistant-call timestamp, and its dot changes color at the three- and five-minute thresholds
+- **THEN** each agent's inline timer advances from its own latest assistant-call timestamp, and its dot changes color at the three- and five-minute thresholds
 
 #### Scenario: Agent has no usable call timestamp
 - **WHEN** an agent has no assistant call with a usable timestamp
-- **THEN** its TTL displays an unavailable value and does not show a fresh, aging, or stale status color
+- **THEN** its “Last Hit” row shows an unavailable age value and does not show a fresh, aging, or stale status color
 
 ### Requirement: Visualize main-agent context usage
 When the main agent’s context usage is known, the dashboard MUST show an indented, thin, single-line Unicode bar below its context row spanning the full available width. The used portion is filled proportionally and colored green (<30%), yellow (<50%), orange (<70%), or red (70% or more); the unused portion MUST use the same subtle, dimmed faint color as section dividers. An indented legend below shows `<30 %`, `<50 %`, `<70 %`, and `≥70 %`.
