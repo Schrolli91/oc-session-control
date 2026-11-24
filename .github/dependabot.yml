@@ -4,9 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      day: monday
+      day: friday
+      time: "15:00"
+      timezone: Europe/Berlin
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-      day: tuesday
+      day: friday
+      time: "15:00"
+      timezone: Europe/Berlin
