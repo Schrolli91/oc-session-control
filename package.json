@@ -35,7 +35,7 @@
   "dependencies": {
     "@opencode/plugin": "2.3.2",
     "open": "11.0.4",
-    "string-width": "7.2.0"
+    "string-width": "9.0.0"
   },
   "peerDependencies": {
     "@opentui/core": ">=0.6.6",
